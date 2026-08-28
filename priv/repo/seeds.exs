@@ -1,11 +1,16 @@
-# Script for populating the database. You can run it as:
+# Seed data for a fresh database.
 #
 #     mix run priv/repo/seeds.exs
 #
-# Inside the script, you can read and write to any of your
-# repositories directly:
+# Idempotent: Accounts.join/1 is find-or-create, so this is safe to run
+# repeatedly and is exactly what `mix ecto.reset` calls.
 #
-#     Chatterhead.Repo.insert!(%Chatterhead.SomeSchema{})
-#
-# We recommend using the bang functions (`insert!`, `update!`
-# and so on) as they will fail if something goes wrong.
+# Users only, no messages. The seeded users start offline, which is what makes
+# requirement A1 -- "list all users", including ones who have never been online
+# -- demonstrable in a single browser window.
+
+alias Chatterhead.Accounts
+
+for name <- ~w(alice bob carol dave erin) do
+  {:ok, _user} = Accounts.join(name)
+end
