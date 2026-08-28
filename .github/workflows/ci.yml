@@ -1,0 +1,64 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# Cancel superseded runs on the same ref (e.g. rapid pushes to a PR).
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    name: compile · format · test
+    runs-on: ubuntu-24.04
+
+    env:
+      MIX_ENV: test
+
+    services:
+      db:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d postgres"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Erlang and Elixir
+        uses: erlef/setup-beam@v1
+        id: beam
+        with:
+          version-file: .tool-versions
+          version-type: strict
+
+      - name: Cache deps and _build
+        uses: actions/cache@v4
+        with:
+          path: |
+            deps
+            _build
+          key: mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-${{ hashFiles('mix.lock') }}
+          restore-keys: |
+            mix-${{ runner.os }}-otp${{ steps.beam.outputs.otp-version }}-elixir${{ steps.beam.outputs.elixir-version }}-
+
+      # mix.exs aliases `test` to run ecto.create --quiet and ecto.migrate --quiet
+      # first, so the postgres service above is all the database setup CI needs.
+      - run: mix deps.get
+      - run: mix deps.unlock --check-unused
+      - run: mix compile --warnings-as-errors
+      - run: mix format --check-formatted
+      - run: mix test
