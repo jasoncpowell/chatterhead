@@ -597,6 +597,13 @@ a local process.
 
 # CHAT-4 — Presence tracking and the presence client
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-4-presence`. 4 commits. Deviations:
+(a) `eventually/2` and `drain_presence_fetchers/0` split across commits 1–2 —
+`drain` references `ChatterheadWeb.Presence` and cannot compile before it exists;
+(b) `drain_presence_fetchers/0` also awaits `Chatterhead.TaskSupervisor` tasks and
+requires consecutive empty polls, or a late `last_seen_at` write races sandbox
+teardown; (c) §3.2 corrected — `update_all` casts (truncates), it does not raise.
+
 ## Summary
 
 Presence infrastructure, and the piece that makes this Plan B rather than Plan A: a
@@ -814,14 +821,15 @@ the Ecto sandbox's way (§6.2).
 
 ## Acceptance criteria
 
-- [ ] `ChatterheadWeb.Presence` starts with the application and appears in the supervision tree.
-- [ ] Tracking a process publishes exactly one `{:user_online, %{id: id, name: name}}` on the events topic.
-- [ ] Tracking a second process for the same user publishes no additional `:user_online`.
-- [ ] Killing one of two processes for the same user publishes no `:user_offline`.
-- [ ] Killing the last process for a user publishes exactly one `{:user_offline, %{id:, name:, at:}}`.
-- [ ] After that leave, the user's `last_seen_at` is persisted and equals the `at` in the broadcast.
-- [ ] Subscribers to `Presence.events_topic/0` never receive a raw `%Phoenix.Socket.Broadcast{event: "presence_diff"}`.
-- [ ] No presence code path queries the database from inside the Presence process.
+- [x] `ChatterheadWeb.Presence` starts with the application and appears in the supervision tree.
+- [x] Tracking a process publishes exactly one `{:user_online, %{id: id, name: name}}` on the events topic.
+- [x] Tracking a second process for the same user publishes no additional `:user_online`.
+- [x] Killing one of two processes for the same user publishes no `:user_offline`.
+- [x] Killing the last process for a user publishes exactly one `{:user_offline, %{id:, name:, at:}}`.
+- [x] After that leave, the user's `last_seen_at` is persisted and equals the `at` in the broadcast.
+- [x] Subscribers to `Presence.events_topic/0` never receive a raw `%Phoenix.Socket.Broadcast{event: "presence_diff"}`.
+- [x] No presence code path queries the database from inside the Presence process.
+      → by design: no `fetch/2`, and the `last_seen_at` write runs in a `Chatterhead.TaskSupervisor` task, not the Presence process.
 
 ---
 
