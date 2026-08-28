@@ -19,6 +19,7 @@ defmodule ChatterheadWeb.Presence do
     otp_app: :chatterhead,
     pubsub_server: Chatterhead.PubSub
 
+  alias Chatterhead.Accounts
   alias Chatterhead.Accounts.User
 
   @topic "chat:presence"
@@ -119,6 +120,13 @@ defmodule ChatterheadWeb.Presence do
           case Map.fetch(acc, key) do
             {:ok, user} ->
               publish({:user_offline, Map.put(user, :at, at)})
+
+              # In a supervised task so a slow write never blocks the tracker.
+              # `at` is the same truncated value carried in the broadcast above.
+              Task.Supervisor.start_child(Chatterhead.TaskSupervisor, fn ->
+                Accounts.touch_last_seen(user.id, at)
+              end)
+
               Map.delete(acc, key)
 
             :error ->

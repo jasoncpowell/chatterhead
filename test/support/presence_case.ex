@@ -19,6 +19,8 @@ defmodule Chatterhead.PresenceCase do
   message, so bounded polling is the only tool that fits.
   """
 
+  alias ChatterheadWeb.Presence
+
   @poll_interval_ms 20
 
   @doc """
@@ -43,23 +45,55 @@ defmodule Chatterhead.PresenceCase do
       end
   end
 
+  # Presence's diff pipeline is async end to end: a tracked process dies, the
+  # tracker updates its CRDT, a fetcher task computes the diff, and only then does
+  # handle_metas/4 run and spawn the last_seen_at write. So "no tasks right now"
+  # is not "settled" — we require the supervisors to stay empty across a few
+  # consecutive polls before concluding.
+  @quiet_polls 5
+
   @doc """
-  Waits for every in-flight `ChatterheadWeb.Presence` fetcher task to exit.
+  Waits until presence has quiesced: every `Phoenix.Presence` fetcher task and
+  every `Chatterhead.TaskSupervisor` task (the `last_seen_at` writes the presence
+  client spawns on leave) has finished, and nothing new has appeared for
+  #{@quiet_polls} consecutive polls.
 
-  Call from `on_exit/1` in any test that tracks presence, so fetcher processes
-  do not leak into the next test.
+  Call from `on_exit/1` in any test that tracks presence, so a late write does
+  not race the sandbox teardown and log a spurious connection error.
   """
-  def drain_presence_fetchers(timeout \\ 1000) do
-    for pid <- ChatterheadWeb.Presence.fetchers_pids() do
-      ref = Process.monitor(pid)
+  def drain_presence_fetchers(timeout \\ 2000) do
+    deadline = System.monotonic_time(:millisecond) + timeout
+    await_quiescent(deadline, 0)
+  end
 
-      receive do
-        {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-      after
-        timeout -> Process.demonitor(ref, [:flush])
-      end
+  defp await_quiescent(deadline, quiet_polls) do
+    tasks =
+      Presence.fetchers_pids() ++ Task.Supervisor.children(Chatterhead.TaskSupervisor)
+
+    cond do
+      tasks == [] and quiet_polls >= @quiet_polls ->
+        :ok
+
+      System.monotonic_time(:millisecond) >= deadline ->
+        :ok
+
+      tasks == [] ->
+        Process.sleep(@poll_interval_ms)
+        await_quiescent(deadline, quiet_polls + 1)
+
+      true ->
+        Enum.each(tasks, &await_down/1)
+        await_quiescent(deadline, 0)
     end
+  end
 
-    :ok
+  defp await_down(pid) do
+    ref = Process.monitor(pid)
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+    after
+      200 -> Process.demonitor(ref, [:flush])
+    end
   end
 end

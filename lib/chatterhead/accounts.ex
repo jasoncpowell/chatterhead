@@ -63,6 +63,23 @@ defmodule Chatterhead.Accounts do
   def get_user!(id), do: Repo.get!(User, id)
 
   @doc """
+  Records `at` as the user's `last_seen_at`.
+
+  One targeted `UPDATE`, no changeset and no read, so it is safe to call from
+  any process — including the unsupervised task the presence client spawns on
+  leave. A missing user id is a harmless no-op.
+
+  Stored at second precision (`update_all` truncates the value). The presence
+  client truncates `at` once at the source, so the timestamp it broadcasts and
+  the one persisted here are identical and no client has to re-query.
+  """
+  @spec touch_last_seen(integer(), DateTime.t()) :: :ok
+  def touch_last_seen(user_id, %DateTime{} = at) do
+    Repo.update_all(from(u in User, where: u.id == ^user_id), set: [last_seen_at: at])
+    :ok
+  end
+
+  @doc """
   A changeset for join and validation forms, without exposing the schema module
   to the web layer.
   """

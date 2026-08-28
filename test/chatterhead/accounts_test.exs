@@ -51,4 +51,26 @@ defmodule Chatterhead.AccountsTest do
       assert %Ecto.Changeset{data: %User{}} = Accounts.change_user(%User{})
     end
   end
+
+  describe "touch_last_seen/2" do
+    test "records the timestamp on the user row" do
+      {:ok, user} = Accounts.join("toucher")
+      at = DateTime.truncate(DateTime.utc_now(), :second)
+
+      assert :ok = Accounts.touch_last_seen(user.id, at)
+      assert Accounts.get_user!(user.id).last_seen_at == at
+    end
+
+    test "stores at second precision" do
+      {:ok, user} = Accounts.join("toucher-usec")
+
+      :ok = Accounts.touch_last_seen(user.id, ~U[2026-01-01 12:00:00.654321Z])
+
+      assert Accounts.get_user!(user.id).last_seen_at == ~U[2026-01-01 12:00:00Z]
+    end
+
+    test "is a harmless no-op for an unknown user id" do
+      assert :ok = Accounts.touch_last_seen(-1, DateTime.truncate(DateTime.utc_now(), :second))
+    end
+  end
 end
