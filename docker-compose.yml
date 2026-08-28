@@ -1,0 +1,34 @@
+# Postgres for local development and tests.
+#
+# Credentials and port match config/dev.exs and config/test.exs: user "postgres",
+# password "postgres", on localhost:5432. `mix ecto.create` makes the chatterhead_dev
+# and chatterhead_test databases inside this server; the container itself only needs
+# to be running and reachable.
+#
+#   docker compose up -d --wait     start, block until the DB accepts connections
+#   docker compose down             stop, keep the data volume
+#   docker compose down -v          stop and wipe the data volume
+#
+# Port 5432 collides with a local Postgres (e.g. Postgres.app). If one is already
+# running, either stop it, or remap the host side to "5433:5432" below and set a
+# matching `port: 5433` in config/dev.exs and config/test.exs.
+
+services:
+  db:
+    image: postgres:17-alpine
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+    ports:
+      - "5432:5432"
+    volumes:
+      - chatterhead_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d postgres"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  chatterhead_pgdata:
