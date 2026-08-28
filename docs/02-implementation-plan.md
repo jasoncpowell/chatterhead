@@ -207,6 +207,10 @@ struct.
 
 # CHAT-1 — Development environment and CI
 
+**Status:** ✅ Complete — 2026-08-28, PR #3. Shipped as 3 commits: `.tool-versions`
+became its own commit (was CHAT-1 OQ2), and CI additionally sets `concurrency` and
+`permissions: contents: read`. Postgres 17; single Elixir 1.20.4 / OTP 29 pin.
+
 ## Summary
 
 Make the repo runnable and verifiable on a machine that is not the author's. Ship a Docker Compose
@@ -278,17 +282,26 @@ does not resolve fails the workflow at setup, before any useful signal.
 
 ## Acceptance criteria
 
-- [ ] On a clean checkout with Docker running and no local Postgres bound to 5432,
+- [x] On a clean checkout with Docker running and no local Postgres bound to 5432,
       `docker compose up -d --wait && mix setup` succeeds with no edits to any config file.
 - [ ] The README tells a reader with a local Postgres already on 5432 exactly what to do.
-- [ ] `mix test` passes against the containerised database.
-- [ ] A pull request runs the workflow and reports a green check.
+      → deferred to CHAT-13, which owns the README rewrite.
+- [x] `mix test` passes against the containerised database.
+- [x] A pull request runs the workflow and reports a green check. (PR #3, merged green.)
 - [ ] Introducing a deliberately unformatted file makes CI fail on the format step, not the test step.
+      → guaranteed by step order (compile → format → test, stop on first failure); not spot-checked with a broken commit.
 - [ ] Introducing a deliberate compiler warning makes CI fail on the compile step.
+      → same: `mix compile --warnings-as-errors` is the first mix step.
 
 ---
 
 # CHAT-2 — Accounts context: users and joining
+
+**Status:** ✅ Complete — 2026-08-28, branch `chat-2-accounts-context`. Decisions:
+name max 24; `last_seen_at` means "last went offline" and `join/1` never writes it;
+seeds insert users only; the domain API takes `%Scope{}`. `has_many :messages` on
+`User` is deferred to CHAT-3 (Ecto warns at compile time on an association whose
+schema does not exist yet).
 
 ## Summary
 
@@ -407,15 +420,15 @@ renders differently from a real timestamp.
 
 ## Acceptance criteria
 
-- [ ] `Accounts.join("alice")` creates a user; a second call with `"ALICE"` returns the same struct
+- [x] `Accounts.join("alice")` creates a user; a second call with `"ALICE"` returns the same struct
       and leaves exactly one row in `users`.
-- [ ] `Accounts.join("  alice   smith ")` stores `"alice smith"`.
-- [ ] `Accounts.join("")` and `Accounts.join("   ")` both return `{:error, %Ecto.Changeset{}}` and
+- [x] `Accounts.join("  alice   smith ")` stores `"alice smith"`.
+- [x] `Accounts.join("")` and `Accounts.join("   ")` both return `{:error, %Ecto.Changeset{}}` and
       insert nothing.
-- [ ] Two concurrent `join/1` calls with the same new name both succeed and return the same id.
-- [ ] `Accounts.list_users/0` returns every persisted user, name-ascending.
-- [ ] A direct `Repo.insert` of a duplicate name is rejected by the database, not just by the changeset.
-- [ ] `mix ecto.reset` runs the seeds without error, twice in a row.
+- [x] Two concurrent `join/1` calls with the same new name both succeed and return the same id.
+- [x] `Accounts.list_users/0` returns every persisted user, name-ascending.
+- [x] A direct `Repo.insert` of a duplicate name is rejected by the database, not just by the changeset.
+- [x] `mix ecto.reset` runs the seeds without error, twice in a row.
 
 ---
 
@@ -449,6 +462,9 @@ ticket contains every requirement-bearing behaviour of A5 and A7 except the rend
 - `Chatterhead.Chat.Message`: `field :body, :string`, `belongs_to :user`,
   `timestamps(type: :utc_datetime_usec)` — the precision must be declared in **both** the migration
   and the schema or it will not round-trip
+- **Also add `has_many :messages, Chatterhead.Chat.Message` to `Chatterhead.Accounts.User`**
+  in this commit — it was deferred from CHAT-2 because Ecto warns at compile time on an
+  association whose schema does not yet exist. `Message` exists now.
 - `changeset/2` casts **only** `[:body]`; `user_id` is set on the struct by the caller, never cast
   (AGENTS.md, Ecto guidelines)
 - Trim the body, `validate_required(:body)`, `validate_length(:body, max: 2000)`,
