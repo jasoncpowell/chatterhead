@@ -20,7 +20,21 @@ defmodule ChatterheadWeb.Router do
   scope "/", ChatterheadWeb do
     pipe_through :browser
 
-    get "/", PageController, :home
+    post "/join", SessionController, :create
+    delete "/leave", SessionController, :delete
+
+    live_session :current_scope,
+      on_mount: [{ChatterheadWeb.UserAuth, :mount_current_scope}] do
+      live "/", LobbyLive, :index
+    end
+
+    live_session :joined,
+      on_mount: [
+        {ChatterheadWeb.UserAuth, :mount_current_scope},
+        {ChatterheadWeb.UserAuth, :require_joined_user}
+      ] do
+      live "/room", RoomLive, :show
+    end
   end
 
   # Other scopes may use custom stacks.
