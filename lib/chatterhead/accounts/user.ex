@@ -17,7 +17,7 @@ defmodule Chatterhead.Accounts.User do
     field :name, :string
     field :last_seen_at, :utc_datetime
 
-    # has_many :messages is added in CHAT-3, once Chatterhead.Chat.Message exists.
+    has_many :messages, Chatterhead.Chat.Message
 
     timestamps(type: :utc_datetime)
   end
