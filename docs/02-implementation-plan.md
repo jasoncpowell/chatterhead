@@ -1021,6 +1021,15 @@ and deliberately out of scope). Message timestamps are absolute for exactly this
 
 # CHAT-7 — Identity, routing, and the join flow
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-7-join-flow`. 2 impl commits. Open
+questions resolved: a joined visitor at `/` is **not** redirected — they see a "Back
+to the room" link instead of the form (so name prefill, OQ4, is moot); `/room` for a
+non-joined visitor **redirects to `/`** with a flash; **no session `max_age`** (demo
+— documented in CHAT-13). The lobby renders the roster via `<.roster>` with an
+all-offline `Roster.build(users, %{})` rather than a throwaway list, so CHAT-8 only
+has to make `@roster` live. `<.button>` has no `:type` attr — dropped `type="submit"`
+(a `<button>` in a `<form>` submits by default).
+
 ## Summary
 
 Everything that turns a visitor into a named participant: the session plug and `on_mount` hooks that
@@ -1145,14 +1154,15 @@ it is a fallback for a direct POST, not the primary UX.
 
 ## Acceptance criteria
 
-- [ ] `/` renders the join form and a list of every persisted user.
-- [ ] Submitting a new name creates the user, sets `:user_id` in the session, and lands on `/room`.
-- [ ] Submitting an existing name (in any casing) reuses that user and creates no new row.
-- [ ] Submitting a blank name returns to `/` with an error flash and creates nothing.
-- [ ] Refreshing `/room` keeps you in the room; a second browser tab is the same user.
-- [ ] Visiting `/room` with no session redirects to `/`.
-- [ ] `DELETE /leave` clears the session and returns to `/`.
-- [ ] The generated Phoenix landing page and its controller, view, template, and test are gone.
+- [x] `/` renders the join form and a list of every persisted user.
+- [x] Submitting a new name creates the user, sets `:user_id` in the session, and lands on `/room`.
+- [x] Submitting an existing name (in any casing) reuses that user and creates no new row.
+- [x] Submitting a blank name returns to `/` with an error flash and creates nothing.
+- [x] Refreshing `/room` keeps you in the room; a second browser tab is the same user.
+      → cookie session + `on_mount :mount_current_scope`; `room_live_test` exercises the session → scope path.
+- [x] Visiting `/room` with no session redirects to `/`.
+- [x] `DELETE /leave` clears the session and returns to `/`.
+- [x] The generated Phoenix landing page and its controller, view, template, and test are gone.
 
 ---
 

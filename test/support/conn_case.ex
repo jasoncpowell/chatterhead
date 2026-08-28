@@ -27,6 +27,7 @@ defmodule ChatterheadWeb.ConnCase do
       # Import conveniences for testing with connections
       import Plug.Conn
       import Phoenix.ConnTest
+      import Phoenix.LiveViewTest
       import ChatterheadWeb.ConnCase
     end
   end
@@ -34,5 +35,15 @@ defmodule ChatterheadWeb.ConnCase do
   setup tags do
     Chatterhead.DataCase.setup_sandbox(tags)
     {:ok, conn: Phoenix.ConnTest.build_conn()}
+  end
+
+  @doc """
+  Puts `user` into the connection's session, the way `SessionController.create/2`
+  would after a successful join.
+  """
+  def log_in(conn, user) do
+    conn
+    |> Phoenix.ConnTest.init_test_session(%{})
+    |> Plug.Conn.put_session(:user_id, user.id)
   end
 end

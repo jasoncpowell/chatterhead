@@ -44,6 +44,14 @@ defmodule ChatterheadWeb.Layouts do
           <span :if={@current_scope} class="text-sm text-base-content/70">
             {@current_scope.user.name}
           </span>
+          <.link
+            :if={@current_scope}
+            href={~p"/leave"}
+            method="delete"
+            class="text-sm text-base-content/60 hover:text-base-content"
+          >
+            Leave
+          </.link>
           <.theme_toggle />
         </div>
       </header>
