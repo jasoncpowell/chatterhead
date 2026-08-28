@@ -146,16 +146,22 @@ Semantic events broadcast on `Presence.events_topic/0`:
 The `at` in `:user_offline` is the same timestamp written to `users.last_seen_at`, so every client's
 roster and the database agree without a re-query.
 
-**`at` must be second-precision — truncate once, at the source.** `users.last_seen_at` is a
-`:utc_datetime` column (CHAT-2), and `Ecto.Type.dump(:utc_datetime, ...)` routes through
-`check_no_usec!/2`, which **raises `ArgumentError`** on any non-zero microsecond value
-(`deps/ecto/lib/ecto/type.ex:582`, `:613`, `:1587-1595`). `DateTime.utc_now/0` returns `{n, 6}`
-precision, so passing it straight to `Repo.update_all` crashes the first time anyone goes offline —
-it does not silently truncate. Compute
+**`at` must be second-precision — truncate once, at the source.** Compute
 `at = DateTime.utc_now() |> DateTime.truncate(:second)` once in `handle_metas/4` and use that single
-value for both the broadcast and the write. (Truncating is preferred over widening the column to
-`:utc_datetime_usec`: it keeps `last_seen_at` consistent with the second-precision `users.inserted_at`
-beside it, for a field the UI renders as "2m ago".)
+value for both the broadcast and the write, so every client's roster and the row hold the identical
+value with no re-query.
+
+> **Corrected during CHAT-4.** An earlier draft of this box claimed
+> `Repo.update_all(set: [last_seen_at: dt])` *raises* `ArgumentError` on a microsecond `dt` via
+> `Ecto.Type.dump/3` → `check_no_usec!/2`. Verified against Ecto 3.14.2: `update_all`'s `set:` values
+> are **cast**, not dumped, so a microsecond value is silently truncated — no crash. `check_no_usec!`
+> *does* fire, and raise, for a `%DateTime{}` written to a struct field through `Repo.insert`/`update`
+> (`deps/ecto/lib/ecto/type.ex:582`, `:613`, `:1587`), which is not this path. So truncation at the
+> source is still required — for broadcast/DB **consistency**, not to dodge a crash.
+
+Truncating is also preferred over widening the column to `:utc_datetime_usec`: it keeps
+`last_seen_at` consistent with the second-precision `users.inserted_at` beside it, for a field the
+UI renders as "2m ago".
 
 ### 3.3 Online-set and roster shapes
 
@@ -330,8 +336,8 @@ not an empty screen.
   create unique_index(:users, [:name])
   ```
 - `last_seen_at` is deliberately `:utc_datetime` (second precision), unlike `messages.inserted_at`.
-  Every writer must therefore hand it a truncated `DateTime` — see §3.2; Ecto **raises** rather than
-  truncating for you.
+  Writers hand it a truncated `DateTime` for broadcast/DB consistency — see §3.2 (and the correction
+  there about what actually raises).
 - No test — migrations are exercised by every subsequent test run.
 
 **2. `feat: add User schema with name changeset`**
@@ -591,6 +597,13 @@ a local process.
 
 # CHAT-4 — Presence tracking and the presence client
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-4-presence`. 4 commits. Deviations:
+(a) `eventually/2` and `drain_presence_fetchers/0` split across commits 1–2 —
+`drain` references `ChatterheadWeb.Presence` and cannot compile before it exists;
+(b) `drain_presence_fetchers/0` also awaits `Chatterhead.TaskSupervisor` tasks and
+requires consecutive empty polls, or a late `last_seen_at` write races sandbox
+teardown; (c) §3.2 corrected — `update_all` casts (truncates), it does not raise.
+
 ## Summary
 
 Presence infrastructure, and the piece that makes this Plan B rather than Plan A: a
@@ -730,8 +743,9 @@ No LiveView work here — this ticket is testable entirely with bare processes.
 **4. `feat: persist last_seen_at when a user goes offline`**
 
 - `Accounts.touch_last_seen(user_id, at)` — a single targeted `Repo.update_all` on the user row, no
-  changeset, no read. Idempotent and safe from any process. **`at` must already be second-truncated**;
-  `update_all` dumps through `:utc_datetime`, which raises on microseconds (§3.2).
+  changeset, no read. Idempotent and safe from any process. The caller hands it a second-truncated
+  `at` so the persisted value matches the broadcast; `update_all` would truncate anyway (§3.2 —
+  it casts, it does not raise).
 - Add `{Task.Supervisor, name: Chatterhead.TaskSupervisor}` to the application supervision tree,
   positioned before `ChatterheadWeb.Presence` (commit 2).
 - Extend the leave branch of `handle_metas/4` so a slow database cannot block the tracker — two lines
@@ -807,14 +821,15 @@ the Ecto sandbox's way (§6.2).
 
 ## Acceptance criteria
 
-- [ ] `ChatterheadWeb.Presence` starts with the application and appears in the supervision tree.
-- [ ] Tracking a process publishes exactly one `{:user_online, %{id: id, name: name}}` on the events topic.
-- [ ] Tracking a second process for the same user publishes no additional `:user_online`.
-- [ ] Killing one of two processes for the same user publishes no `:user_offline`.
-- [ ] Killing the last process for a user publishes exactly one `{:user_offline, %{id:, name:, at:}}`.
-- [ ] After that leave, the user's `last_seen_at` is persisted and equals the `at` in the broadcast.
-- [ ] Subscribers to `Presence.events_topic/0` never receive a raw `%Phoenix.Socket.Broadcast{event: "presence_diff"}`.
-- [ ] No presence code path queries the database from inside the Presence process.
+- [x] `ChatterheadWeb.Presence` starts with the application and appears in the supervision tree.
+- [x] Tracking a process publishes exactly one `{:user_online, %{id: id, name: name}}` on the events topic.
+- [x] Tracking a second process for the same user publishes no additional `:user_online`.
+- [x] Killing one of two processes for the same user publishes no `:user_offline`.
+- [x] Killing the last process for a user publishes exactly one `{:user_offline, %{id:, name:, at:}}`.
+- [x] After that leave, the user's `last_seen_at` is persisted and equals the `at` in the broadcast.
+- [x] Subscribers to `Presence.events_topic/0` never receive a raw `%Phoenix.Socket.Broadcast{event: "presence_diff"}`.
+- [x] No presence code path queries the database from inside the Presence process.
+      → by design: no `fetch/2`, and the `last_seen_at` write runs in a `Chatterhead.TaskSupervisor` task, not the Presence process.
 
 ---
 
