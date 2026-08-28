@@ -9,10 +9,12 @@ defmodule Chatterhead.Chat do
 
   import Ecto.Query
 
+  alias Chatterhead.Accounts.Scope
   alias Chatterhead.Chat.Message
   alias Chatterhead.Repo
 
   @page_size 50
+  @topic "chat:room"
 
   @doc """
   The most recent page of history, oldest-first, each message with `user`
@@ -54,6 +56,49 @@ defmodule Chatterhead.Chat do
   @doc "The history page size."
   @spec page_size() :: pos_integer()
   def page_size, do: @page_size
+
+  @doc "The PubSub topic new messages are broadcast on."
+  @spec topic() :: String.t()
+  def topic, do: @topic
+
+  @doc "Subscribes the calling process to `{:new_message, message}` broadcasts."
+  @spec subscribe() :: :ok | {:error, term()}
+  def subscribe do
+    Phoenix.PubSub.subscribe(Chatterhead.PubSub, @topic)
+  end
+
+  @doc """
+  Persists a message and broadcasts it to every subscriber.
+
+  Broadcasting from the context, not the LiveView, means an IEx session or a
+  future HTTP caller also fans out. The payload carries a fully-loaded
+  `%Message{user: %User{}}` so no subscriber re-queries, and there is no local
+  echo -- the sender receives their own message through the broadcast like
+  everyone else, for one code path and identical ordering everywhere.
+  """
+  @spec send_message(Scope.t(), map()) :: {:ok, Message.t()} | {:error, Ecto.Changeset.t()}
+  def send_message(%Scope{user: user}, attrs) do
+    %Message{user_id: user.id}
+    |> Message.changeset(attrs)
+    |> Repo.insert()
+    |> case do
+      {:ok, message} ->
+        message = %{message | user: user}
+        Phoenix.PubSub.broadcast(Chatterhead.PubSub, @topic, {:new_message, message})
+        {:ok, message}
+
+      {:error, changeset} ->
+        {:error, changeset}
+    end
+  end
+
+  @doc "A changeset for the compose form."
+  @spec change_message(Message.t(), map()) :: Ecto.Changeset.t()
+  def change_message(message \\ %Message{}, attrs \\ %{})
+
+  def change_message(%Message{} = message, attrs) do
+    Message.changeset(message, attrs)
+  end
 
   # Both queries fetch newest-first with one extra row: the extra row is the
   # "more?" signal. Drop it, then reverse to oldest-first.
