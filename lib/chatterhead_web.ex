@@ -81,6 +81,7 @@ defmodule ChatterheadWeb do
       import Phoenix.HTML
       # Core UI components
       import ChatterheadWeb.CoreComponents
+      import ChatterheadWeb.ChatComponents
 
       # Common modules used in templates
       alias Phoenix.LiveView.JS
