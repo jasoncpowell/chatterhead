@@ -434,6 +434,13 @@ renders differently from a real timestamp.
 
 # CHAT-3 — Chat context: messages, history, and fan-out
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-3-chat-context`. 4 commits. Page
+size 50, body max 2000 server-side, keyset via row-value `fragment` + `type/2`. The
+`send_message` / PubSub tests live in an `async: false` file (`chat_broadcast_test.exs`)
+rather than the plan's `async: true`: they broadcast on one global topic, so a
+concurrent async test would break the "broadcasts nothing" `refute_receive`.
+`has_many :messages` added to `User` here (deferred from CHAT-2).
+
 ## Summary
 
 The `Chatterhead.Chat` context: a `Message` schema, the windowed history query and its keyset
@@ -571,14 +578,14 @@ a local process.
 
 ## Acceptance criteria
 
-- [ ] A message is persisted with a microsecond-precision `inserted_at`.
-- [ ] Two messages written inside the same second load back in insertion order.
-- [ ] `list_recent/1` returns at most `page_size` messages, oldest-first, each with `user` preloaded.
-- [ ] `more?` is `true` when unshown history exists and `false` when the returned page is the whole history.
-- [ ] `list_before/2` returns the page immediately preceding the cursor with no overlap and no gap.
-- [ ] Inserting new messages between two `list_before/2` calls does not duplicate or skip any message.
-- [ ] A process subscribed via `Chat.subscribe/0` receives `{:new_message, message}` after a successful send.
-- [ ] A rejected message produces no row and no broadcast.
+- [x] A message is persisted with a microsecond-precision `inserted_at`.
+- [x] Two messages written inside the same second load back in insertion order.
+- [x] `list_recent/1` returns at most `page_size` messages, oldest-first, each with `user` preloaded.
+- [x] `more?` is `true` when unshown history exists and `false` when the returned page is the whole history.
+- [x] `list_before/2` returns the page immediately preceding the cursor with no overlap and no gap.
+- [x] Inserting new messages between two `list_before/2` calls does not duplicate or skip any message.
+- [x] A process subscribed via `Chat.subscribe/0` receives `{:new_message, message}` after a successful send.
+- [x] A rejected message produces no row and no broadcast.
 
 ---
 
