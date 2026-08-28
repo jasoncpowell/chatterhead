@@ -835,6 +835,11 @@ the Ecto sandbox's way (§6.2).
 
 # CHAT-5 — Roster projection
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-5-roster`. 1 implementation commit,
+no deviations. Open questions resolved as recommended: offline group sorted
+alphabetically; no cap on the offline list; "(you)" is a CHAT-6 component concern —
+`Entry` carries no `you?` flag. Internal field named `by_id`; struct is `@opaque`.
+
 ## Summary
 
 A pure module that answers "who exists, and which of them are online" by combining the persisted user
@@ -899,14 +904,14 @@ on every join and leave. The roster is bounded by user count and belongs in a pl
 
 ## Acceptance criteria
 
-- [ ] Given three persisted users and an online map containing one of them, `entries/1` returns three
+- [x] Given three persisted users and an online map containing one of them, `entries/1` returns three
       entries with exactly one `online?: true`.
-- [ ] `entries/1` lists all online users before any offline user, each group sorted case-insensitively by name.
-- [ ] `mark_online/2` with an id absent from the roster adds a visible entry.
-- [ ] `mark_offline/2` records the supplied timestamp as `last_seen_at`.
-- [ ] `counts/1` always equals the partition sizes of `entries/1`.
-- [ ] The module has no reference to `Repo`, `Presence`, or `Phoenix.LiveView`.
-- [ ] The whole test file runs `async: true`.
+- [x] `entries/1` lists all online users before any offline user, each group sorted case-insensitively by name.
+- [x] `mark_online/2` with an id absent from the roster adds a visible entry.
+- [x] `mark_offline/2` records the supplied timestamp as `last_seen_at`.
+- [x] `counts/1` always equals the partition sizes of `entries/1`.
+- [x] The module has no reference to `Repo`, `Presence`, or `Phoenix.LiveView`.
+- [x] The whole test file runs `async: true`.
 
 ---
 
