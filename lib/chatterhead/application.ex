@@ -12,8 +12,9 @@ defmodule Chatterhead.Application do
       Chatterhead.Repo,
       {DNSCluster, query: Application.get_env(:chatterhead, :dns_cluster_query) || :ignore},
       {Phoenix.PubSub, name: Chatterhead.PubSub},
-      # Start a worker by calling: Chatterhead.Worker.start_link(arg)
-      # {Chatterhead.Worker, arg},
+      # Presence depends on the PubSub server above and must start before the
+      # endpoint so tracking is available as soon as connections arrive.
+      ChatterheadWeb.Presence,
       # Start to serve requests, typically the last entry
       ChatterheadWeb.Endpoint
     ]

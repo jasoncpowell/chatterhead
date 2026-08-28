@@ -42,4 +42,24 @@ defmodule Chatterhead.PresenceCase do
         reraise error, __STACKTRACE__
       end
   end
+
+  @doc """
+  Waits for every in-flight `ChatterheadWeb.Presence` fetcher task to exit.
+
+  Call from `on_exit/1` in any test that tracks presence, so fetcher processes
+  do not leak into the next test.
+  """
+  def drain_presence_fetchers(timeout \\ 1000) do
+    for pid <- ChatterheadWeb.Presence.fetchers_pids() do
+      ref = Process.monitor(pid)
+
+      receive do
+        {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+      after
+        timeout -> Process.demonitor(ref, [:flush])
+      end
+    end
+
+    :ok
+  end
 end
