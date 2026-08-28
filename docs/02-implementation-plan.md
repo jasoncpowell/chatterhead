@@ -917,6 +917,13 @@ on every join and leave. The roster is bounded by user count and belongs in a pl
 
 # CHAT-6 — Application shell and shared chat components
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-6-shell-components`. 2 impl commits.
+Open questions resolved: **no** message grouping (fights streams); **monochrome
+initials avatars**; **uniform left-aligned log** with a subtle tint on own rows (not
+right-aligned bubbles); **no** header online count (roster group counts suffice);
+never-online users read **"Never joined"** (CHAT-4 OQ3). Also swapped the
+`· Phoenix Framework` tab-title suffix for `· Chatterhead` in `root.html.heex`.
+
 ## Summary
 
 Replace the generated Phoenix marketing chrome with an application shell, and build the small set of
@@ -1000,14 +1007,15 @@ and deliberately out of scope). Message timestamps are absolute for exactly this
 
 ## Acceptance criteria
 
-- [ ] No page renders the Phoenix logo, version badge, or the generated marketing links.
-- [ ] `<.roster>` renders online users above offline users, each with a distinguishable status
+- [x] No page renders the Phoenix logo, version badge, or the generated marketing links.
+      → `Layouts.app` chrome removed; the standalone marketing page (`home.html.heex`) is deleted in CHAT-7.
+- [x] `<.roster>` renders online users above offline users, each with a distinguishable status
       indicator and a stable per-user DOM id.
-- [ ] `<.message>` renders the author, the body, and a timestamp, and escapes HTML in the body.
-- [ ] `last_seen_label/1` returns a sensible string for `nil` and for timestamps seconds, minutes,
+- [x] `<.message>` renders the author, the body, and a timestamp, and escapes HTML in the body.
+- [x] `last_seen_label/1` returns a sensible string for `nil` and for timestamps seconds, minutes,
       hours, and days in the past.
-- [ ] The component test file runs `async: true` and needs neither a database nor a socket.
-- [ ] `mix precommit` is clean; no unused-import or unused-alias warnings from the layout rewrite.
+- [x] The component test file runs `async: true` and needs neither a database nor a socket.
+- [x] `mix precommit` is clean; no unused-import or unused-alias warnings from the layout rewrite.
 
 ---
 
