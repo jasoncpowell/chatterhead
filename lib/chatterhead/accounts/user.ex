@@ -11,6 +11,8 @@ defmodule Chatterhead.Accounts.User do
 
   @name_max 24
 
+  @type t :: %__MODULE__{}
+
   schema "users" do
     field :name, :string
     field :last_seen_at, :utc_datetime
