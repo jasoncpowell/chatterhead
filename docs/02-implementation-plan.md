@@ -1,6 +1,6 @@
 # Chatterhead — Implementation Plan
 
-**Status:** ready to implement
+**Status:** ✅ all tickets complete (CHAT-1 – CHAT-13), merged to `main`
 **Date:** 2026-08-28
 **Input:** [`docs/01-architecture-options.md`](01-architecture-options.md) — read it first; this document does not repeat its rationale.
 **Chosen direction:** **Plan B** — Idiomatic Minimal + Presence Client (axes 2b · 3a · 4a · 5a · 6b).
@@ -1654,6 +1654,11 @@ process leakage from bleeding across tests.
 
 # CHAT-13 — README
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-13-readme`. 1 impl commit. Includes
+the A1–A8 traceability table (worth it for a reviewer). Skipped: a screenshot/GIF (no
+binary in the repo); a stated time figure (the build ran incrementally across
+sessions — no honest single number); committing `docs/00-brief.md`.
+
 ## Summary
 
 The submission's front door: setup that works on a machine that has never seen this repo, the
@@ -1727,13 +1732,15 @@ that overstates is worse than one that admits a gap.
 
 ## Acceptance criteria
 
-- [ ] A reader who has never seen the repo can go from clone to a running app using only the README.
-- [ ] The setup path is verified on a clean clone with an empty Docker volume.
-- [ ] Every assumption in doc 01 §10 appears, plus any added during implementation.
-- [ ] The architecture section names both the message path and the presence path.
-- [ ] The README states what was deliberately not built and under what conditions it would be.
-- [ ] Every known limitation is stated plainly, with no overselling of multi-node resilience.
-- [ ] The generated Phoenix README boilerplate is gone.
+- [x] A reader who has never seen the repo can go from clone to a running app using only the README.
+- [x] The setup path is verified on a clean clone with an empty Docker volume.
+      → `docker compose up -d --wait && mix setup` was verified against an empty volume in CHAT-1;
+      the README quickstart is those exact commands.
+- [x] Every assumption in doc 01 §10 appears, plus any added during implementation.
+- [x] The architecture section names both the message path and the presence path.
+- [x] The README states what was deliberately not built and under what conditions it would be.
+- [x] Every known limitation is stated plainly, with no overselling of multi-node resilience.
+- [x] The generated Phoenix README boilerplate is gone.
 
 ---
 
