@@ -56,17 +56,44 @@ defmodule ChatterheadWeb.UserAuth do
   @doc """
   Renews the session id (session-fixation hygiene) and records the joined user.
   The caller redirects.
+
+  Also stamps a `live_socket_id`. `Phoenix.LiveView.Socket.id/1` reads that key
+  out of the session, which makes every LiveView connection this user opens
+  addressable on one topic — the handle `log_out_user/1` needs.
   """
   def log_in_user(conn, %User{} = user) do
     conn
     |> renew_session()
     |> put_session(:user_id, user.id)
+    |> put_session(:live_socket_id, live_socket_id(user))
   end
 
-  @doc "Renews the session id and drops the joined user."
+  @doc """
+  Renews the session id, drops the joined user, and closes their live
+  connections.
+
+  The disconnect is what makes Leave take effect at once. Clearing the cookie
+  alone leaves the room's LiveView process running — it is torn down only when
+  its connection goes away, and that is the browser's decision, taken on its own
+  schedule (see `ChatterheadWeb.PresenceController`). Until then the process
+  holds its presence and everyone else still sees the user in the room, for as
+  long as the transport takes to notice the silence. Leaving is something the
+  server knows for certain, so it does not wait to be told: broadcasting
+  `"disconnect"` stops those sockets here and `Phoenix.Presence` untracks them
+  in milliseconds.
+
+  Every tab goes, not just the one that clicked Leave — the session they shared
+  is gone, so none of them are joined any more.
+  """
   def log_out_user(conn) do
+    if live_socket_id = get_session(conn, :live_socket_id) do
+      ChatterheadWeb.Endpoint.broadcast(live_socket_id, "disconnect", %{})
+    end
+
     renew_session(conn)
   end
+
+  defp live_socket_id(%User{id: id}), do: "users_socket:#{id}"
 
   defp scope_from(user_id) when is_integer(user_id) do
     case Accounts.get_user(user_id) do

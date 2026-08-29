@@ -32,8 +32,8 @@ name. Now:
 
 - A message sent in one window appears in the other instantly.
 - Each window's roster shows the other person move to **Online**.
-- Close one window: the other shows that person go **Offline** within about a
-  second, with a "last seen" label.
+- Close one window, or click **Leave**: the other shows that person go **Offline**
+  immediately, with a "last seen" label.
 - Open the room in two tabs as the same user: you stay online until *both* close.
 
 There's a dev helper to fill the room with history so you can try "Load older":
@@ -141,6 +141,31 @@ RoomLive.mount → Presence.track_user(self(), user)
 a second tab is silent, and closing one of two tabs is silent. On leave, `last_seen_at`
 is persisted from a supervised task so a slow write never blocks the tracker, using
 the same second-truncated timestamp the event carried.
+
+### Going offline promptly
+
+Presence is released when the LiveView process dies, and that happens when its
+connection goes away — so on its own, "who is online" is only as prompt as the
+browser's goodbye, and a browser unloading a page is not a dependable narrator of
+that. `phoenix.js` defers its WebSocket close behind a `setTimeout` when the send
+buffer is not empty and timers stop running mid-unload; on the long-poll fallback
+the goodbye is an XHR the browser cancels; a page frozen into the back/forward
+cache is never torn down at all. When the goodbye is lost, nothing releases the
+presence until the transport's own silence timer expires, tens of seconds later.
+
+So departure is not inferred from the connection. There are three paths, in order
+of how much they trust the client:
+
+| Path | Mechanism | Covers |
+| --- | --- | --- |
+| **Leave** | `UserAuth.log_out_user/1` broadcasts `"disconnect"` on the session's `live_socket_id` | Every tab, no client involvement — the server knows |
+| **Page unload** | `pagehide` → `navigator.sendBeacon("/away")` → `Presence.untrack_page/2` | Tab/window close and navigation, on either transport |
+| **Silence** | WebSocket `timeout` / long-poll `window_ms` in `endpoint.ex` | A client that vanishes without a word: a crash, a kill, a dropped network |
+
+The beacon names the *page*, not the user: a page mints an id at load and sends it
+as a connect param, and it rides along in the presence meta. A beacon still in
+flight for the page being left therefore cannot unseat the page being navigated
+to, which holds a different id.
 
 ---
 

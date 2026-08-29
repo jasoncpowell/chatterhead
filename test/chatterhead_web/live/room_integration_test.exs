@@ -88,6 +88,41 @@ defmodule ChatterheadWeb.RoomIntegrationTest do
       end)
     end
 
+    # The bug this closes: presence used to be released only when the LiveView
+    # process died, and that waits on the connection going away -- which the
+    # browser cannot be relied on to do as it unloads. A page that beacons on its
+    # way out is dropped now, with its socket still open.
+    test "a beacon from a departing page drops it from an open client's roster" do
+      {_alice, alice_view} = join_room("alice-beacon-int")
+      {bob, _bob_view} = join_room("bob-beacon-int", "bob-page-1")
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+      end)
+
+      build_conn() |> log_in(bob) |> post(~p"/away", page_id: "bob-page-1")
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='false']")
+      end)
+    end
+
+    test "a beacon for a page the user has since replaced leaves them online" do
+      {_alice, alice_view} = join_room("alice-stale-int")
+      {bob, _bob_view} = join_room("bob-stale-int", "bob-page-2")
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+      end)
+
+      # The beacon for the page bob navigated *away* from, arriving after the page
+      # he navigated *to* has already connected. It must not unseat the new one.
+      build_conn() |> log_in(bob) |> post(~p"/away", page_id: "bob-page-1")
+
+      Process.sleep(200)
+      assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+    end
+
     test "a user created after an open client mounted still appears in its roster" do
       {_alice, alice_view} = join_room("alice-newcomer-int")
 
@@ -137,9 +172,15 @@ defmodule ChatterheadWeb.RoomIntegrationTest do
     end
   end
 
-  defp join_room(name) do
+  defp join_room(name, page_id \\ nil) do
     {:ok, user} = Accounts.join(name)
-    {:ok, view, _html} = build_conn() |> log_in(user) |> live(~p"/room")
+
+    {:ok, view, _html} =
+      build_conn()
+      |> log_in(user)
+      |> put_connect_params(%{"page_id" => page_id})
+      |> live(~p"/room")
+
     {user, view}
   end
 
