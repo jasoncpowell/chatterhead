@@ -4,10 +4,9 @@ A single-room live chat: pick a name, join, and talk. Everyone sees every messag
 it's sent, and the roster shows who's in the room right now — going offline the
 moment you close the tab, with no polling.
 
-This is a take-home exercise. It's built on Phoenix LiveView with `Phoenix.PubSub`
-for message fan-out and `Phoenix.Presence` for presence. The reasoning behind the
-design — including the things deliberately *not* built — is in
-[`docs/`](docs/) and summarised below.
+It's built on Phoenix LiveView with `Phoenix.PubSub` for message fan-out and 
+`Phoenix.Presence` for presence. The reasoning behind the design — including the
+ hings deliberately *not* built — is in [`docs/`](docs/) and summarised below.
 
 - Elixir 1.20 / OTP 29 · Phoenix 1.8 · LiveView 1.2 · Ecto 3.14 · PostgreSQL 17
 
@@ -236,18 +235,3 @@ the same second-truncated timestamp the event carried.
 - **Abrupt disconnects.** A cleanly-closed tab drops you offline in about a second. A
   crash / kill / dropped network is detected when the WebSocket times out — tuned down
   to ~25s here (from the 60s default).
-
----
-
-## Show your work
-
-The exercise asks for the reasoning, not just the code. The trail:
-
-- [`docs/01-architecture-options.md`](docs/01-architecture-options.md) — the design
-  space, the axes that matter, three plans, and the recommendation.
-- [`docs/02-implementation-plan.md`](docs/02-implementation-plan.md) — every ticket
-  as a self-contained unit, with acceptance criteria, and a status line recording
-  what changed during implementation (including two bugs found in review and a
-  handful of corrections to the plan's own assumptions).
-- [`AGENTS.md`](AGENTS.md) — the AI instructions file this repo was built with, which
-  the exercise encourages submitting.
