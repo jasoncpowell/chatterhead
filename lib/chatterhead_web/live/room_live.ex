@@ -7,20 +7,35 @@ defmodule ChatterheadWeb.RoomLive do
   """
   use ChatterheadWeb, :live_view
 
+  alias Chatterhead.Accounts
+  alias Chatterhead.Accounts.Roster
   alias Chatterhead.Chat
   alias Chatterhead.Chat.Message
+  alias ChatterheadWeb.Presence
 
   @impl true
   def mount(_params, _session, socket) do
     {messages, more_history?} = Chat.list_recent()
 
-    if connected?(socket), do: Chat.subscribe()
+    roster =
+      if connected?(socket) do
+        # Subscribe before tracking (so our own join event can't be missed),
+        # track before snapshotting (so the snapshot already contains us). Every
+        # roster handler is idempotent, so any overlap is harmless.
+        Phoenix.PubSub.subscribe(Chatterhead.PubSub, Presence.events_topic())
+        Chat.subscribe()
+        Presence.track_user(self(), socket.assigns.current_scope.user)
+        Roster.build(Accounts.list_users(), Presence.online_users())
+      else
+        Roster.build(Accounts.list_users(), %{})
+      end
 
     {:ok,
      socket
      |> assign(:more_history?, more_history?)
      |> assign(:oldest_cursor, oldest_cursor(messages))
      |> assign(:form, to_form(Chat.change_message()))
+     |> assign(:roster, roster)
      |> stream(:messages, messages)}
   end
 
@@ -66,58 +81,76 @@ defmodule ChatterheadWeb.RoomLive do
     {:noreply, stream_insert(socket, :messages, message)}
   end
 
+  def handle_info({:user_online, user}, socket) do
+    {:noreply, update(socket, :roster, &Roster.mark_online(&1, user))}
+  end
+
+  def handle_info({:user_offline, user}, socket) do
+    {:noreply, update(socket, :roster, &Roster.mark_offline(&1, user))}
+  end
+
   @impl true
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto flex w-full min-h-0 max-w-3xl flex-1 flex-col">
-        <div :if={@more_history?} class="border-b border-base-300 p-2 text-center">
-          <button
-            id="load-older"
-            type="button"
-            phx-click="load_older"
-            phx-disable-with="Loading…"
-            class="text-xs font-medium text-base-content/60 hover:text-base-content"
-          >
-            Load older messages
-          </button>
-        </div>
+      <div class="flex min-h-0 flex-1">
+        <aside class="hidden w-56 min-h-0 shrink-0 overflow-y-auto border-r border-base-300 sm:block">
+          <.roster
+            entries={Roster.entries(@roster)}
+            counts={Roster.counts(@roster)}
+            current_user_id={@current_scope.user.id}
+          />
+        </aside>
 
-        <div
-          id="messages"
-          phx-update="stream"
-          phx-hook=".MessageList"
-          class="min-h-0 flex-1 overflow-y-auto p-4"
-        >
+        <div class="flex min-h-0 flex-1 flex-col">
+          <div :if={@more_history?} class="border-b border-base-300 p-2 text-center">
+            <button
+              id="load-older"
+              type="button"
+              phx-click="load_older"
+              phx-disable-with="Loading…"
+              class="text-xs font-medium text-base-content/60 hover:text-base-content"
+            >
+              Load older messages
+            </button>
+          </div>
+
           <div
-            id="messages-empty"
-            class="hidden py-16 text-center text-sm text-base-content/50 only:block"
+            id="messages"
+            phx-update="stream"
+            phx-hook=".MessageList"
+            class="min-h-0 flex-1 overflow-y-auto p-4"
           >
-            No messages yet. Say something.
-          </div>
-          <div :for={{dom_id, message} <- @streams.messages} id={dom_id}>
-            <.message message={message} current_user_id={@current_scope.user.id} />
-          </div>
-        </div>
-
-        <div class="border-t border-base-300 p-4">
-          <.form
-            for={@form}
-            id="message-form"
-            phx-submit="send"
-            phx-change="validate"
-            class="flex items-start gap-2"
-          >
-            <div class="flex-1">
-              <.input
-                field={@form[:body]}
-                type="text"
-                placeholder="Message the room"
-                autocomplete="off"
-              />
+            <div
+              id="messages-empty"
+              class="hidden py-16 text-center text-sm text-base-content/50 only:block"
+            >
+              No messages yet. Say something.
             </div>
-            <.button>Send</.button>
-          </.form>
+            <div :for={{dom_id, message} <- @streams.messages} id={dom_id}>
+              <.message message={message} current_user_id={@current_scope.user.id} />
+            </div>
+          </div>
+
+          <div class="border-t border-base-300 p-4">
+            <.form
+              for={@form}
+              id="message-form"
+              phx-submit="send"
+              phx-change="validate"
+              class="flex items-start gap-2"
+            >
+              <div class="flex-1">
+                <.input
+                  field={@form[:body]}
+                  type="text"
+                  placeholder="Message the room"
+                  autocomplete="off"
+                />
+              </div>
+              <.button>Send</.button>
+            </.form>
+          </div>
         </div>
       </div>
     </Layouts.app>

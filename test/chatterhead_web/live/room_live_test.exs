@@ -3,11 +3,19 @@ defmodule ChatterheadWeb.RoomLiveTest do
   # send_message/2 below broadcasts on a single global topic.
   use ChatterheadWeb.ConnCase, async: false
 
+  import Chatterhead.PresenceCase
+
   alias Chatterhead.Accounts
   alias Chatterhead.Accounts.Scope
   alias Chatterhead.Chat
   alias Chatterhead.Chat.Message
   alias Chatterhead.Repo
+  alias ChatterheadWeb.Presence
+
+  setup do
+    on_exit(&drain_presence_fetchers/0)
+    :ok
+  end
 
   describe "guard" do
     test "a visitor with no session is redirected to the lobby", %{conn: conn} do
@@ -163,6 +171,98 @@ defmodule ChatterheadWeb.RoomLiveTest do
       # the live message still appended at the very bottom
       assert pos(html, "brand new") > pos(html, "msg-#{pad(total)}")
       refute has_element?(view, "#load-older")
+    end
+  end
+
+  describe "presence" do
+    test "the current user appears online in their own roster", %{conn: conn} do
+      {:ok, user} = Accounts.join("self-in-room")
+
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      eventually(fn ->
+        assert has_element?(view, "#roster-user-#{user.id}[data-online='true']")
+      end)
+    end
+
+    test "another user in the room shows online, then offline when they leave", %{conn: conn} do
+      {:ok, alice} = Accounts.join("alice-room-presence")
+      {:ok, bob} = Accounts.join("bob-room-presence")
+
+      {:ok, alice_view, _} = conn |> log_in(alice) |> live(~p"/room")
+
+      # track_user/1 calls the same Presence.track_user/2 RoomLive.mount does.
+      bob_conn = track_user(bob)
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+      end)
+
+      stop_tracked(bob_conn)
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='false']")
+      end)
+
+      # he was just here -- his entry shows a real last-seen label, not "Never joined"
+      bob_entry = alice_view |> element("#roster-user-#{bob.id}") |> render()
+      assert bob_entry =~ "just now"
+      refute bob_entry =~ "Never joined"
+    end
+
+    test "a client mounting after someone is already online shows them online at once", %{
+      conn: conn
+    } do
+      {:ok, alice} = Accounts.join("late-alice")
+      {:ok, bob} = Accounts.join("early-bob")
+
+      track_user(bob)
+      eventually(fn -> assert Map.has_key?(Presence.online_users(), bob.id) end)
+
+      {:ok, view, _html} = conn |> log_in(alice) |> live(~p"/room")
+
+      assert has_element?(view, "#roster-user-#{bob.id}[data-online='true']")
+    end
+
+    test "RoomLive has no terminate/2 callback" do
+      refute function_exported?(ChatterheadWeb.RoomLive, :terminate, 2)
+    end
+
+    test "multi-tab: closing one of a user's two connections keeps them online", %{conn: conn} do
+      {:ok, alice} = Accounts.join("alice-tabs")
+      {:ok, bob} = Accounts.join("bob-tabs")
+
+      {:ok, alice_view, _} = conn |> log_in(alice) |> live(~p"/room")
+
+      bob_tab1 = track_user(bob)
+      bob_tab2 = track_user(bob)
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+      end)
+
+      stop_tracked(bob_tab1)
+
+      # bob is still online (tab 2 remains); give a spurious offline time to not arrive
+      Process.sleep(150)
+      assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+
+      stop_tracked(bob_tab2)
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='false']")
+      end)
+    end
+
+    test "a user who has never joined the room shows as never joined", %{conn: conn} do
+      {:ok, user} = Accounts.join("desk-jockey")
+      # a seeded/other user with no last_seen_at
+      {:ok, absent} = Accounts.join("never-here")
+
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      assert has_element?(view, "#roster-user-#{absent.id}[data-online='false']")
+      assert render(view) =~ "Never joined"
     end
   end
 
