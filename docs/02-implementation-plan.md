@@ -1250,6 +1250,18 @@ mode — which is what lets CHAT-4's unowned `last_seen_at` task find a connecti
 
 # CHAT-9 — Room: message history, streaming, and composition
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-9-room-messages`. 3 impl commits.
+Open questions resolved: **single-line `<input>`** composer (no Enter/Shift-Enter JS);
+composer **clears on success**, not optimistically; `@more_history?` / `@oldest_cursor`
+assigned in `mount/3` (one query shape for CHAT-10); **no** "N new messages" affordance.
+Deviations: the empty-state div needs an `id` (`#messages-empty`) — the LiveViewTest
+DOM patcher rejects an id-less `phx-update="stream"` child, which the plan's template
+example omitted; the colocated hook renders `phx-hook="ChatterheadWeb.RoomLive.MessageList"`
+(module-qualified), not the literal `.MessageList` the plan's test assertion expected.
+Post-review fix: the message pane and its wrapper needed `min-h-0` (flex items default
+to `min-height: auto` and won't shrink below content), or the composer gets pushed
+off screen as history grows instead of the pane scrolling internally.
+
 ## Summary
 
 The room's message pane: the most recent page of history streamed on mount, live fan-out of new
@@ -1366,14 +1378,15 @@ client renders the same list in the same order from the same code path.
 
 ## Acceptance criteria
 
-- [ ] Opening `/room` shows the most recent page of history, oldest at the top.
-- [ ] With no messages at all, the room shows an empty state.
-- [ ] Sending a message persists it and renders it for the sender.
-- [ ] The same message appears in another already-open client with no refresh.
-- [ ] The composer clears after a successful send.
-- [ ] A blank or whitespace-only message is rejected with a visible error and persists nothing.
-- [ ] A message body containing HTML renders as text, not markup.
-- [ ] The message pane is scrolled to the newest message on load and stays pinned while at the bottom.
+- [x] Opening `/room` shows the most recent page of history, oldest at the top.
+- [x] With no messages at all, the room shows an empty state.
+- [x] Sending a message persists it and renders it for the sender.
+- [x] The same message appears in another already-open client with no refresh.
+- [x] The composer clears after a successful send.
+- [x] A blank or whitespace-only message is rejected with a visible error and persists nothing.
+- [x] A message body containing HTML renders as text, not markup.
+- [x] The message pane is scrolled to the newest message on load and stays pinned while at the bottom.
+      → browser JS (`.MessageList` hook); verified manually. The test asserts only that the hook is wired.
 
 ---
 
