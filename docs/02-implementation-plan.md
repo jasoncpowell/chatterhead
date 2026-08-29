@@ -1392,6 +1392,14 @@ client renders the same list in the same order from the same code path.
 
 # CHAT-10 — Room: load older messages
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-10-load-older`. 2 impl commits.
+Open questions resolved: a **button** (`#load-older`), not `phx-viewport-top` (which
+the README should name as the production upgrade); `phx-disable-with` for the
+in-flight state; **no** cap on how far back you can page. The `#load-older` control
+sits in a thin bar **above** the scroll pane (always visible when `@more_history?`),
+not as a child of the stream. `list_before/2` tests use `Repo.insert_all` and 3-digit
+zero-padded bodies (`msg-001`) so a substring match can't confuse `msg-1` with `msg-11`.
+
 ## Summary
 
 Complete requirement A5 — *all* past messages must be reachable — with keyset pagination on
@@ -1461,14 +1469,15 @@ two sentences in the README.
 
 ## Acceptance criteria
 
-- [ ] With more than one page of history, `#load-older` is visible on mount.
-- [ ] Clicking it prepends exactly the preceding page, in correct chronological order, above the
+- [x] With more than one page of history, `#load-older` is visible on mount.
+- [x] Clicking it prepends exactly the preceding page, in correct chronological order, above the
       existing messages.
-- [ ] Repeated clicks walk back through history with no duplicated and no skipped message.
-- [ ] The control disappears once the oldest message is loaded.
-- [ ] With one page or less of history, the control never appears.
-- [ ] Messages arriving while the user is paged back still append at the bottom.
-- [ ] The message the user is reading stays visually in place when older messages load above it.
+- [x] Repeated clicks walk back through history with no duplicated and no skipped message.
+- [x] The control disappears once the oldest message is loaded.
+- [x] With one page or less of history, the control never appears.
+- [x] Messages arriving while the user is paged back still append at the bottom.
+- [x] The message the user is reading stays visually in place when older messages load above it.
+      → browser JS (`.MessageList` `updated()` height-delta shift); verified manually.
 
 ---
 
