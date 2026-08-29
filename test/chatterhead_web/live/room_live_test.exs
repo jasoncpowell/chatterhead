@@ -141,20 +141,28 @@ defmodule ChatterheadWeb.RoomLiveTest do
       refute has_element?(view, "#load-older")
     end
 
-    test "a message arriving between two loads is neither duplicated nor skipped", %{conn: conn} do
+    test "walks back through multiple pages; a message between loads is not lost or dupd", %{
+      conn: conn
+    } do
       {:ok, user} = Accounts.join("concurrent-pager")
       size = Chat.page_size()
-      seed_n(user, size + 5)
+      total = size * 2 + 5
+      seed_n(user, total)
 
       {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      view |> element("#load-older") |> render_click()
 
       {:ok, _} = Chat.send_message(Scope.for_user(user), %{body: "brand new"})
       assert render(view) =~ "brand new"
 
       html = view |> element("#load-older") |> render_click()
 
-      for i <- 1..(size + 5), do: assert(html =~ "msg-#{pad(i)}")
+      for i <- 1..total, do: assert(html =~ "msg-#{pad(i)}")
       assert count(html, "brand new") == 1
+      # the live message still appended at the very bottom
+      assert pos(html, "brand new") > pos(html, "msg-#{pad(total)}")
+      refute has_element?(view, "#load-older")
     end
   end
 
@@ -166,9 +174,12 @@ defmodule ChatterheadWeb.RoomLiveTest do
   defp seed_messages(user, bodies) do
     base = ~U[2026-01-01 00:00:00.000000Z]
 
-    for {body, i} <- Enum.with_index(bodies) do
-      at = DateTime.add(base, i, :second)
-      Repo.insert!(%Message{user_id: user.id, body: body, inserted_at: at, updated_at: at})
-    end
+    entries =
+      for {body, i} <- Enum.with_index(bodies) do
+        at = DateTime.add(base, i, :second)
+        %{user_id: user.id, body: body, inserted_at: at, updated_at: at}
+      end
+
+    Repo.insert_all(Message, entries)
   end
 end
