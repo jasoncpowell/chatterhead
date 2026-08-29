@@ -112,6 +112,57 @@ defmodule ChatterheadWeb.RoomLiveTest do
     end
   end
 
+  describe "load older" do
+    test "shows the control and prepends the previous page in order", %{conn: conn} do
+      {:ok, user} = Accounts.join("pager")
+      size = Chat.page_size()
+      seed_n(user, size + 10)
+
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      html = render(view)
+      assert has_element?(view, "#load-older")
+      refute html =~ "msg-001"
+      assert html =~ "msg-#{pad(size + 10)}"
+
+      html = view |> element("#load-older") |> render_click()
+
+      assert html =~ "msg-001"
+      refute has_element?(view, "#load-older")
+      assert pos(html, "msg-001") < pos(html, "msg-#{pad(size + 1)}")
+    end
+
+    test "no control when history is one page or less", %{conn: conn} do
+      {:ok, user} = Accounts.join("shortpager")
+      seed_n(user, Chat.page_size())
+
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      refute has_element?(view, "#load-older")
+    end
+
+    test "a message arriving between two loads is neither duplicated nor skipped", %{conn: conn} do
+      {:ok, user} = Accounts.join("concurrent-pager")
+      size = Chat.page_size()
+      seed_n(user, size + 5)
+
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      {:ok, _} = Chat.send_message(Scope.for_user(user), %{body: "brand new"})
+      assert render(view) =~ "brand new"
+
+      html = view |> element("#load-older") |> render_click()
+
+      for i <- 1..(size + 5), do: assert(html =~ "msg-#{pad(i)}")
+      assert count(html, "brand new") == 1
+    end
+  end
+
+  defp seed_n(user, n), do: seed_messages(user, Enum.map(1..n, &"msg-#{pad(&1)}"))
+  defp pad(i), do: String.pad_leading(to_string(i), 3, "0")
+  defp pos(html, needle), do: :binary.match(html, needle) |> elem(0)
+  defp count(html, needle), do: length(String.split(html, needle)) - 1
+
   defp seed_messages(user, bodies) do
     base = ~U[2026-01-01 00:00:00.000000Z]
 

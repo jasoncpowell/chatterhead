@@ -30,6 +30,25 @@ defmodule ChatterheadWeb.RoomLive do
     {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
   end
 
+  def handle_event("load_older", _params, socket) do
+    case socket.assigns.oldest_cursor do
+      nil ->
+        {:noreply, socket}
+
+      cursor ->
+        {older, more_history?} = Chat.list_before(cursor)
+
+        # list_before/2 returns oldest-first; stream/4 at: 0 displays a batch in
+        # reverse, so feed it newest-first and the oldest lands on top. One
+        # stream/4 call, the documented idiom.
+        {:noreply,
+         socket
+         |> stream(:messages, Enum.reverse(older), at: 0)
+         |> assign(:more_history?, more_history?)
+         |> assign(:oldest_cursor, oldest_cursor(older) || socket.assigns.oldest_cursor)}
+    end
+  end
+
   def handle_event("send", %{"message" => params}, socket) do
     case Chat.send_message(socket.assigns.current_scope, params) do
       {:ok, _message} ->
@@ -52,6 +71,18 @@ defmodule ChatterheadWeb.RoomLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto flex w-full min-h-0 max-w-3xl flex-1 flex-col">
+        <div :if={@more_history?} class="border-b border-base-300 p-2 text-center">
+          <button
+            id="load-older"
+            type="button"
+            phx-click="load_older"
+            phx-disable-with="Loading…"
+            class="text-xs font-medium text-base-content/60 hover:text-base-content"
+          >
+            Load older messages
+          </button>
+        </div>
+
         <div
           id="messages"
           phx-update="stream"
