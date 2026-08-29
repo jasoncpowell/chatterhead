@@ -131,9 +131,17 @@ defmodule ChatterheadWeb.RoomLive do
           const el = this.el
           // within ~2 lines of the bottom counts as "reading the newest"
           this.wasAtBottom = el.scrollHeight - el.clientHeight - el.scrollTop < 48
+          this.prevScrollHeight = el.scrollHeight
         },
         updated() {
-          if (this.wasAtBottom) this.pinToBottom()
+          const el = this.el
+          if (this.wasAtBottom) {
+            this.pinToBottom()
+          } else {
+            // Content was inserted above (Load older). Shift the viewport down by
+            // the added height so the message being read stays put.
+            el.scrollTop += el.scrollHeight - this.prevScrollHeight
+          }
         },
         pinToBottom() {
           this.el.scrollTop = this.el.scrollHeight
