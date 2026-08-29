@@ -1491,7 +1491,11 @@ group counts suffice (answers CHAT-6 OQ4 too). Deviation: the presence tests use
 `PresenceCase.track_user/1` (same `Presence.track_user/2` a real room connection
 calls) as the stand-in for a second connection — killing a `Phoenix.LiveViewTest`
 view mid-test cascades through the shared test supervisor and takes the test with it.
-Real two-`live/2`-connection coverage is CHAT-12.
+Real two-`live/2`-connection coverage is CHAT-12. Post-review fix: a browser
+navigating away wasn't closing its WebSocket promptly, so a user showed "online" to
+everyone else for 15–30s after leaving (the server-side untrack itself is ~22ms).
+Fixed with a `pagehide` → `liveSocket.disconnect()` in `app.js`, a 10s client
+heartbeat, and a 25s `websocket: [timeout: ...]` on the `/live` socket (was 60s).
 
 ## Summary
 

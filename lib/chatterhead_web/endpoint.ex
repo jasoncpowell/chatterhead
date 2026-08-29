@@ -11,8 +11,12 @@ defmodule ChatterheadWeb.Endpoint do
     same_site: "Lax"
   ]
 
+  # timeout: 25s (default 60s). The client heartbeats every 10s (app.js), so a
+  # live connection stays well inside the window; a connection that goes silent
+  # — a crash, a killed tab, a dropped network — is dropped in 25s instead of
+  # 60s, and the user shows as offline to everyone else that much sooner.
   socket "/live", Phoenix.LiveView.Socket,
-    websocket: [connect_info: [session: @session_options]],
+    websocket: [connect_info: [session: @session_options], timeout: 25_000],
     longpoll: [connect_info: [session: @session_options]]
 
   # Serve at "/" the static files from "priv/static" directory.

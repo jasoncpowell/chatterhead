@@ -28,9 +28,19 @@ import topbar from "../vendor/topbar"
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
+  // A live client proves it's alive every 10s; the server drops a silent
+  // connection after 25s (endpoint.ex). Together with the pagehide disconnect
+  // below, a user leaving the room shows as offline to everyone else within
+  // a second, not after a 60s socket timeout.
+  heartbeatIntervalMs: 10_000,
   params: {_csrf_token: csrfToken},
   hooks: {...colocatedHooks},
 })
+
+// Close the socket cleanly when the page goes away (tab close, navigation,
+// clicking "Leave") so the server tears the LiveView down at once and
+// Phoenix.Presence untracks immediately.
+window.addEventListener("pagehide", () => liveSocket.disconnect())
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})
