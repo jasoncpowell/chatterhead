@@ -106,13 +106,16 @@ defmodule Chatterhead.PresenceCase do
   test ends (or `stop_tracked/1` is called). Returns its pid. Use this to stand
   in for "someone is in the room" in tests that don't open a real `/room`
   LiveView connection.
+
+  `page_id` stands in for the id a browser page sends as a connect param; pass
+  one to test `Presence.untrack_page/2`.
   """
-  def track_user(%User{} = user) do
+  def track_user(%User{} = user, page_id \\ nil) do
     test = self()
 
     pid =
       spawn(fn ->
-        {:ok, _ref} = Presence.track_user(self(), user)
+        {:ok, _ref} = Presence.track_user(self(), user, page_id)
         send(test, {:tracked, self()})
 
         receive do

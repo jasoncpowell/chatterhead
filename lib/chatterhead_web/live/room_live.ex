@@ -24,7 +24,13 @@ defmodule ChatterheadWeb.RoomLive do
         # roster handler is idempotent, so any overlap is harmless.
         Phoenix.PubSub.subscribe(Chatterhead.PubSub, Presence.events_topic())
         Chat.subscribe()
-        Presence.track_user(self(), socket.assigns.current_scope.user)
+
+        Presence.track_user(
+          self(),
+          socket.assigns.current_scope.user,
+          get_connect_params(socket)["page_id"]
+        )
+
         Roster.build(Accounts.list_users(), Presence.online_users())
       else
         Roster.build(Accounts.list_users(), %{})

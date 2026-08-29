@@ -120,6 +120,57 @@ defmodule ChatterheadWeb.PresenceTest do
     end
   end
 
+  describe "untrack_page/2" do
+    test "drops the named page's presence and publishes :user_offline", %{user: user} do
+      id = user.id
+      start_tracker(user, "page-a")
+      assert_receive {:user_online, %{id: ^id}}, 1000
+
+      assert :ok = Presence.untrack_page(user, "page-a")
+
+      assert_receive {:user_offline, %{id: ^id}}, 1000
+      eventually(fn -> refute Map.has_key?(Presence.online_users(), id) end)
+    end
+
+    test "another tab of the same user keeps them online", %{user: user} do
+      id = user.id
+      start_tracker(user, "page-a")
+      start_tracker(user, "page-b")
+      assert_receive {:user_online, %{id: ^id}}, 1000
+
+      assert :ok = Presence.untrack_page(user, "page-a")
+
+      refute_receive {:user_offline, %{id: ^id}}, 300
+      assert Map.has_key?(Presence.online_users(), id)
+    end
+
+    # What makes the pagehide beacon safe to fire on every navigation: the beacon
+    # for the page being left is already in flight while the page being navigated
+    # to connects, and it must not be able to unseat it.
+    test "a page id this user does not hold is a no-op", %{user: user} do
+      id = user.id
+      start_tracker(user, "page-current")
+      assert_receive {:user_online, %{id: ^id}}, 1000
+
+      assert :ok = Presence.untrack_page(user, "page-already-closed")
+
+      refute_receive {:user_offline, %{id: ^id}}, 300
+      assert Map.has_key?(Presence.online_users(), id)
+    end
+
+    test "one user's page id cannot drop another user", %{user: user} do
+      id = user.id
+      {:ok, other} = Accounts.join("other-#{System.unique_integer([:positive])}")
+      start_tracker(user, "shared-page-id")
+      assert_receive {:user_online, %{id: ^id}}, 1000
+
+      assert :ok = Presence.untrack_page(other, "shared-page-id")
+
+      refute_receive {:user_offline, %{id: ^id}}, 300
+      assert Map.has_key?(Presence.online_users(), id)
+    end
+  end
+
   describe "last_seen_at persistence" do
     test "the last tab closing persists last_seen_at, equal to the broadcast at", %{user: user} do
       id = user.id
@@ -137,12 +188,12 @@ defmodule ChatterheadWeb.PresenceTest do
     end
   end
 
-  defp start_tracker(user) do
+  defp start_tracker(user, page_id \\ nil) do
     test = self()
 
     pid =
       spawn(fn ->
-        {:ok, _ref} = Presence.track_user(self(), user)
+        {:ok, _ref} = Presence.track_user(self(), user, page_id)
         send(test, {:tracked, self()})
 
         receive do

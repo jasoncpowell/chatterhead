@@ -23,6 +23,10 @@ defmodule ChatterheadWeb.Router do
     post "/join", SessionController, :create
     delete "/leave", SessionController, :delete
 
+    # POST because `navigator.sendBeacon/2` only issues POSTs. See
+    # ChatterheadWeb.PresenceController for why the beacon exists at all.
+    post "/away", PresenceController, :away
+
     live_session :current_scope,
       on_mount: [{ChatterheadWeb.UserAuth, :mount_current_scope}] do
       live "/", LobbyLive, :index

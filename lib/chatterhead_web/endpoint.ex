@@ -11,13 +11,22 @@ defmodule ChatterheadWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  # timeout: 25s (default 60s). The client heartbeats every 10s (app.js), so a
-  # live connection stays well inside the window; a connection that goes silent
-  # — a crash, a killed tab, a dropped network — is dropped in 25s instead of
-  # 60s, and the user shows as offline to everyone else that much sooner.
+  # Both timings here are backstops, for a client that vanishes without a word:
+  # a crash, a killed tab, a dropped network. A client that leaves on purpose is
+  # dropped at once by the `pagehide` beacon in app.js, and one that clicks Leave
+  # by the disconnect broadcast in UserAuth.log_out_user/1.
+  #
+  # websocket timeout: 25s (default 60s). The client heartbeats every 10s
+  # (app.js), so a live connection stays well inside the window.
+  #
+  # longpoll window_ms: 8s (default 10s). Long-poll has no connection for the OS
+  # to close, so silence is the *only* signal it has; Phoenix reaps an idle
+  # session after `window_ms * 1.5`, on a timer of that same period, so the
+  # default trails a departed user for 15–30s. At 8s that is 12–24s, in line with
+  # the WebSocket rather than well past it.
   socket "/live", Phoenix.LiveView.Socket,
     websocket: [connect_info: [session: @session_options], timeout: 25_000],
-    longpoll: [connect_info: [session: @session_options]]
+    longpoll: [connect_info: [session: @session_options], window_ms: 8_000]
 
   # Serve at "/" the static files from "priv/static" directory.
   #

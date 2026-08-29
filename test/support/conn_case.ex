@@ -40,10 +40,14 @@ defmodule ChatterheadWeb.ConnCase do
   @doc """
   Puts `user` into the connection's session, the way `SessionController.create/2`
   would after a successful join.
+
+  Delegates to `UserAuth.log_in_user/2` rather than writing the session keys by
+  hand, so tests get the same session a real join produces -- `live_socket_id`
+  included, which is what `UserAuth.log_out_user/1` disconnects on.
   """
   def log_in(conn, user) do
     conn
     |> Phoenix.ConnTest.init_test_session(%{})
-    |> Plug.Conn.put_session(:user_id, user.id)
+    |> ChatterheadWeb.UserAuth.log_in_user(user)
   end
 end

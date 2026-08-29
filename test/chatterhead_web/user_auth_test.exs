@@ -43,6 +43,15 @@ defmodule ChatterheadWeb.UserAuthTest do
       assert get_session(conn, :stale) == nil
       assert conn.private.plug_session_info == :renew
     end
+
+    test "stamps a live_socket_id so the user's connections are addressable", %{
+      conn: conn,
+      user: user
+    } do
+      conn = UserAuth.log_in_user(conn, user)
+
+      assert get_session(conn, :live_socket_id) == "users_socket:#{user.id}"
+    end
   end
 
   describe "log_out_user/1" do
@@ -54,6 +63,30 @@ defmodule ChatterheadWeb.UserAuthTest do
 
       assert get_session(conn, :user_id) == nil
       assert conn.private.plug_session_info == :renew
+    end
+
+    # Without this the room's LiveView outlives the session and keeps holding the
+    # user's presence until its connection happens to go away -- which is how a
+    # user who clicked Leave stayed "online" to everyone else for 15-25s.
+    test "disconnects the user's live connections", %{conn: conn, user: user} do
+      ChatterheadWeb.Endpoint.subscribe("users_socket:#{user.id}")
+
+      conn
+      |> UserAuth.log_in_user(user)
+      |> UserAuth.log_out_user()
+
+      assert_receive %Phoenix.Socket.Broadcast{
+        topic: topic,
+        event: "disconnect"
+      }
+
+      assert topic == "users_socket:#{user.id}"
+    end
+
+    test "a session with no live_socket_id logs out without raising", %{conn: conn} do
+      conn = UserAuth.log_out_user(conn)
+
+      assert get_session(conn, :user_id) == nil
     end
   end
 

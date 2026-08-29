@@ -47,14 +47,49 @@ defmodule ChatterheadWeb.Presence do
 
   @doc """
   Tracks `pid` (a LiveView process) as `user` being present in the room.
+
+  `page_id` is the id the browser page minted for itself and sent as a connect
+  param. It rides along in the meta so `untrack_page/2` can drop this one page's
+  presence and nobody else's — see that function for why that matters.
   """
-  @spec track_user(pid(), User.t()) :: {:ok, binary()} | {:error, term()}
-  def track_user(pid, %User{} = user) do
+  @spec track_user(pid(), User.t(), String.t() | nil) :: {:ok, binary()} | {:error, term()}
+  def track_user(pid, %User{} = user, page_id \\ nil) do
     track(pid, @topic, to_string(user.id), %{
       id: user.id,
       name: user.name,
+      page_id: page_id,
       online_at: DateTime.utc_now()
     })
+  end
+
+  @doc """
+  Drops the presence held by one page of `user`'s — the page that beaconed
+  `ChatterheadWeb.PresenceController` on its way out.
+
+  Presence is normally released when the LiveView process dies, which only
+  happens once its connection goes away, and a browser tearing a page down is
+  not a reliable narrator of that (see the controller's moduledoc). This is the
+  path that does not wait for the connection: the beacon names the page, and
+  only the presence carrying that `page_id` in its meta is untracked.
+
+  Scoping to the page rather than the user is what makes it safe to fire on
+  every `pagehide`. A user navigating from the room to the lobby produces a
+  beacon for the old page while the new one is already connecting; addressed by
+  user, a beacon still in flight would knock the new page offline and make the
+  roster flicker. Addressed by page, it cannot.
+
+  Other tabs keep their own presence, so the user stays online while any of
+  them are open — the same rule `handle_metas/4` applies.
+  """
+  @spec untrack_page(User.t(), String.t()) :: :ok
+  def untrack_page(%User{} = user, page_id) when is_binary(page_id) do
+    key = to_string(user.id)
+
+    for {pid, %{page_id: ^page_id}} <- Phoenix.Tracker.get_by_key(__MODULE__, @topic, key) do
+      untrack(pid, @topic, key)
+    end
+
+    :ok
   end
 
   @doc """
@@ -87,7 +122,8 @@ defmodule ChatterheadWeb.Presence do
   #                    leaves, so `Map.has_key?(presences, key)` answers "are any
   #                    tabs for this user still open?".
   #
-  #   meta           : %{id: integer, name: String.t(), online_at: DateTime.t()}
+  #   meta           : %{id: integer, name: String.t(), page_id: String.t() | nil,
+  #                       online_at: DateTime.t()}
   #
   #   state          : %{topic => %{key => %{id: integer, name: String.t()}}}
 

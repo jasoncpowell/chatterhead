@@ -26,21 +26,46 @@ import {hooks as colocatedHooks} from "phoenix-colocated/chatterhead"
 import topbar from "../vendor/topbar"
 
 const csrfToken = document.querySelector("meta[name='csrf-token']").getAttribute("content")
+
+// A fresh id per page load, sent up as a connect param and kept in this user's
+// presence meta. The goodbye below names it, so a beacon still in flight can
+// only ever drop the presence of the page that sent it -- never the page the
+// browser is navigating to, which has its own. The server only ever matches it
+// within the current session, so it is a label, not a secret.
+const pageId = `${Date.now().toString(36)}-${Math.random().toString(36).slice(2)}`
+
 const liveSocket = new LiveSocket("/live", Socket, {
   longPollFallbackMs: 2500,
   // A live client proves it's alive every 10s; the server drops a silent
-  // connection after 25s (endpoint.ex). Together with the pagehide disconnect
-  // below, a user leaving the room shows as offline to everyone else within
-  // a second, not after a 60s socket timeout.
+  // connection after 25s (endpoint.ex). That timeout is only a backstop for a
+  // client that vanishes without a word -- a leaving client says so below.
   heartbeatIntervalMs: 10_000,
-  params: {_csrf_token: csrfToken},
+  params: {_csrf_token: csrfToken, page_id: pageId},
   hooks: {...colocatedHooks},
 })
 
-// Close the socket cleanly when the page goes away (tab close, navigation,
-// clicking "Leave") so the server tears the LiveView down at once and
-// Phoenix.Presence untracks immediately.
-window.addEventListener("pagehide", () => liveSocket.disconnect())
+// Say goodbye when the page goes away (tab close, navigation, clicking "Leave"),
+// so everyone else's roster updates now rather than whenever the server notices
+// the connection is gone.
+//
+// disconnect() alone is not enough, which is why the beacon leads. It closes the
+// WebSocket via a setTimeout whenever the send buffer is non-empty, and timers
+// stop running once a page is unloading; on the long-poll fallback it is an XHR
+// the browser cancels outright; and a page frozen into the back/forward cache is
+// never torn down, so there is no socket close for the OS to deliver either.
+// sendBeacon is the one request a browser undertakes to deliver after the page
+// is gone. See ChatterheadWeb.PresenceController.
+window.addEventListener("pagehide", () => {
+  navigator.sendBeacon("/away", new URLSearchParams({page_id: pageId, _csrf_token: csrfToken}))
+  liveSocket.disconnect()
+})
+
+// pagehide also fires when a page is merely frozen into the back/forward cache,
+// where it can be restored intact -- so reconnect, or Back would land on a page
+// whose socket we just closed and never reopen it.
+window.addEventListener("pageshow", event => {
+  if (event.persisted) { liveSocket.connect() }
+})
 
 // Show progress bar on live navigation and form submits
 topbar.config({barColors: {0: "#29d"}, shadowColor: "rgba(0, 0, 0, .3)"})

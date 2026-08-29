@@ -1497,6 +1497,40 @@ everyone else for 15–30s after leaving (the server-side untrack itself is ~22m
 Fixed with a `pagehide` → `liveSocket.disconnect()` in `app.js`, a 10s client
 heartbeat, and a 25s `websocket: [timeout: ...]` on the `/live` socket (was 60s).
 
+**Second post-review fix — a user still lingered "Online" for 15–25s.** The fix above
+only narrowed the timeout it was falling back to; it did not stop the fall-back. Two
+paths were measured against a running server with a scripted LiveView client:
+
+| Path | Before | After |
+| --- | --- | --- |
+| Leave button, socket still open | 23.5s | 0.02s |
+| Window closed, socket still open | 23.5s | 0.03s |
+| Long-poll fallback, client stops polling | 28.5s | 0.02s (beacon) |
+| Clean close / TCP drop | already ~0s | ~0s |
+| No word at all (crash, kill, network drop) | 15–30s | 12–24s |
+
+Root cause: presence is released only when the LiveView process dies, which waits on
+the connection going away — and `liveSocket.disconnect()` is best effort. `phoenix.js`
+defers `conn.close()` behind a `setTimeout` when the send buffer is non-empty and
+timers stop running mid-unload; on the long-poll fallback the goodbye is an XHR the
+browser cancels, and long-poll is not connection-bound at all; a page frozen into the
+back/forward cache is never torn down. Meanwhile `log_out_user/1` cleared the cookie
+and left the LiveView running, so even Leave — something the server knows for certain —
+waited on the browser.
+
+Fixed by not inferring departure from the connection:
+
+- `UserAuth.log_in_user/2` stamps `live_socket_id`; `log_out_user/1` broadcasts
+  `"disconnect"` on it, so Leave drops every tab server-side.
+- `app.js` beacons `/away` on `pagehide` (`navigator.sendBeacon` survives unload);
+  `ChatterheadWeb.PresenceController` → `Presence.untrack_page/2` drops that page's
+  presence. The beacon names a per-page-load id carried in the presence meta, so a
+  beacon in flight can't unseat the page being navigated to.
+- `app.js` reconnects on `pageshow` when `persisted` — the earlier `pagehide`
+  disconnect left a back/forward-cache restore on a dead socket.
+- `longpoll: [window_ms: 8_000]` brings the silence backstop in line with the
+  WebSocket's rather than well past it.
+
 ## Summary
 
 Track the current user's connection as a presence and render the live roster in the room sidebar.

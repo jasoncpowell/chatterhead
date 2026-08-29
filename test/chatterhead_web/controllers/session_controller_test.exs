@@ -41,5 +41,14 @@ defmodule ChatterheadWeb.SessionControllerTest do
       assert redirected_to(conn) == ~p"/"
       assert get_session(conn, :user_id) == nil
     end
+
+    test "disconnects the user's live connections, so presence drops at once", %{conn: conn} do
+      {:ok, user} = Accounts.join("leaver-live")
+      ChatterheadWeb.Endpoint.subscribe("users_socket:#{user.id}")
+
+      conn |> log_in(user) |> delete(~p"/leave")
+
+      assert_receive %Phoenix.Socket.Broadcast{event: "disconnect"}
+    end
   end
 end
