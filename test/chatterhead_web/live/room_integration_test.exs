@@ -3,9 +3,15 @@ defmodule ChatterheadWeb.RoomIntegrationTest do
   # LiveView connections exchanging messages and observing each other's presence.
   use ChatterheadWeb.ConnCase, async: false
 
+  # `mix test --exclude integration` skips these for a faster local loop.
+  @moduletag :integration
+
   import Chatterhead.PresenceCase
 
   alias Chatterhead.Accounts
+  alias Chatterhead.Chat
+  alias Chatterhead.Chat.Message
+  alias Chatterhead.Repo
 
   setup do
     on_exit(&drain_presence_fetchers/0)
@@ -94,11 +100,63 @@ defmodule ChatterheadWeb.RoomIntegrationTest do
     end
   end
 
+  describe "history under a live conversation" do
+    test "paging back while another client sends skips and duplicates nothing" do
+      size = Chat.page_size()
+      total = size + 10
+
+      {:ok, alice} = Accounts.join("alice-hist")
+      seed(alice, total)
+
+      {_alice, alice_view} = join_room("alice-hist")
+      {_bob, bob_view} = join_room("bob-hist")
+
+      assert has_element?(alice_view, "#load-older")
+
+      for n <- 1..3 do
+        bob_view |> form("#message-form", message: %{body: "live-#{n}"}) |> render_submit()
+      end
+
+      assert render(alice_view) =~ "live-3"
+
+      alice_view |> element("#load-older") |> render_click()
+
+      html = render(alice_view)
+
+      for i <- 1..total do
+        assert html =~ "seed-#{pad(i)}", "missing seed-#{pad(i)} after paging back"
+        assert count(html, "seed-#{pad(i)}") == 1, "seed-#{pad(i)} rendered more than once"
+      end
+
+      for n <- 1..3 do
+        assert html =~ "live-#{n}"
+        assert count(html, "live-#{n}") == 1
+      end
+
+      refute has_element?(alice_view, "#load-older")
+    end
+  end
+
   defp join_room(name) do
     {:ok, user} = Accounts.join(name)
     {:ok, view, _html} = build_conn() |> log_in(user) |> live(~p"/room")
     {user, view}
   end
+
+  defp seed(user, n) do
+    base = ~U[2026-01-01 00:00:00.000000Z]
+
+    entries =
+      for i <- 1..n do
+        at = DateTime.add(base, i, :second)
+        %{user_id: user.id, body: "seed-#{pad(i)}", inserted_at: at, updated_at: at}
+      end
+
+    Repo.insert_all(Message, entries)
+  end
+
+  defp pad(i), do: String.pad_leading(to_string(i), 3, "0")
+  defp count(html, needle), do: length(String.split(html, needle)) - 1
 
   defp in_order(html, needles) do
     positions = Enum.map(needles, &(:binary.match(html, &1) |> elem(0)))
