@@ -1,24 +1,36 @@
 defmodule ChatterheadWeb.LobbyLive do
   @moduledoc """
   The landing page: the join form (for a visitor) or a link back to the room
-  (for someone already joined), above the full list of users.
+  (for someone already joined), above a live list of every user and who is in
+  the room right now.
 
-  The list is a plain assign here, all-offline. CHAT-8 subscribes to presence
-  events and makes it live.
+  The lobby *observes* presence — it never tracks. It seeds `@roster` from a
+  snapshot on mount, then folds the semantic `{:user_online, ...}` /
+  `{:user_offline, ...}` events into it. It never sees a raw `presence_diff`.
   """
   use ChatterheadWeb, :live_view
 
   alias Chatterhead.Accounts
   alias Chatterhead.Accounts.Roster
   alias Chatterhead.Accounts.User
+  alias ChatterheadWeb.Presence
 
   @impl true
   def mount(_params, _session, socket) do
-    roster = Roster.build(Accounts.list_users(), %{})
+    online =
+      if connected?(socket) do
+        # Subscribe *before* snapshotting: a join or leave in the gap would be
+        # lost otherwise. A duplicated event is harmless — mark_online/2 and
+        # mark_offline/2 are idempotent.
+        Phoenix.PubSub.subscribe(Chatterhead.PubSub, Presence.events_topic())
+        Presence.online_users()
+      else
+        %{}
+      end
 
     {:ok,
      socket
-     |> assign(:roster, roster)
+     |> assign(:roster, Roster.build(Accounts.list_users(), online))
      |> assign(:form, to_form(Accounts.change_user(%User{})))}
   end
 
@@ -26,6 +38,15 @@ defmodule ChatterheadWeb.LobbyLive do
   def handle_event("validate", %{"user" => params}, socket) do
     changeset = Accounts.change_user(%User{}, params)
     {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
+  end
+
+  @impl true
+  def handle_info({:user_online, user}, socket) do
+    {:noreply, update(socket, :roster, &Roster.mark_online(&1, user))}
+  end
+
+  def handle_info({:user_offline, user}, socket) do
+    {:noreply, update(socket, :roster, &Roster.mark_offline(&1, user))}
   end
 
   @impl true

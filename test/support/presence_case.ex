@@ -19,6 +19,10 @@ defmodule Chatterhead.PresenceCase do
   message, so bounded polling is the only tool that fits.
   """
 
+  import ExUnit.Assertions
+  import ExUnit.Callbacks, only: [on_exit: 1]
+
+  alias Chatterhead.Accounts.User
   alias ChatterheadWeb.Presence
 
   @poll_interval_ms 20
@@ -94,6 +98,44 @@ defmodule Chatterhead.PresenceCase do
       {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
     after
       200 -> Process.demonitor(ref, [:flush])
+    end
+  end
+
+  @doc """
+  Spawns a bare process that tracks `user` in the room and stays alive until the
+  test ends (or `stop_tracked/1` is called). Returns its pid. Use this to stand
+  in for "someone is in the room" in tests that don't open a real `/room`
+  LiveView connection.
+  """
+  def track_user(%User{} = user) do
+    test = self()
+
+    pid =
+      spawn(fn ->
+        {:ok, _ref} = Presence.track_user(self(), user)
+        send(test, {:tracked, self()})
+
+        receive do
+          :stop -> :ok
+        end
+      end)
+
+    assert_receive {:tracked, ^pid}, 1_000
+    on_exit(fn -> stop_tracked(pid) end)
+    pid
+  end
+
+  @doc "Stops a process started by `track_user/1` and waits for it to exit."
+  def stop_tracked(pid) do
+    if Process.alive?(pid) do
+      ref = Process.monitor(pid)
+      send(pid, :stop)
+
+      receive do
+        {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+      after
+        500 -> Process.demonitor(ref, [:flush])
+      end
     end
   end
 end
