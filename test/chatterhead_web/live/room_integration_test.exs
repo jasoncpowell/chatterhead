@@ -41,6 +41,59 @@ defmodule ChatterheadWeb.RoomIntegrationTest do
     end
   end
 
+  describe "presence" do
+    test "a joining connection appears in an open client's roster, and leaves it on disconnect" do
+      {_alice, alice_view} = join_room("alice-pres-int")
+      {bob, bob_view} = join_room("bob-pres-int")
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+      end)
+
+      disconnect(bob_view)
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='false']")
+      end)
+
+      # bob was here -- his entry carries a real last-seen label
+      entry = alice_view |> element("#roster-user-#{bob.id}") |> render()
+      assert entry =~ "just now"
+    end
+
+    test "multi-tab across two real connections: one tab closing keeps the user online" do
+      {_alice, alice_view} = join_room("alice-tab-int")
+      {bob, bob_tab1} = join_room("bob-tab-int")
+      {^bob, bob_tab2} = join_room("bob-tab-int")
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+      end)
+
+      disconnect(bob_tab1)
+
+      Process.sleep(200)
+      assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='true']")
+
+      disconnect(bob_tab2)
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{bob.id}[data-online='false']")
+      end)
+    end
+
+    test "a user created after an open client mounted still appears in its roster" do
+      {_alice, alice_view} = join_room("alice-newcomer-int")
+
+      # carl does not exist when alice mounts
+      {carl, _carl_view} = join_room("carl-newcomer-int")
+
+      eventually(fn ->
+        assert has_element?(alice_view, "#roster-user-#{carl.id}[data-online='true']")
+      end)
+    end
+  end
+
   defp join_room(name) do
     {:ok, user} = Accounts.join(name)
     {:ok, view, _html} = build_conn() |> log_in(user) |> live(~p"/room")

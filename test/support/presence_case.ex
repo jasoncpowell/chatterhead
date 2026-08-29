@@ -125,6 +125,24 @@ defmodule Chatterhead.PresenceCase do
     pid
   end
 
+  @doc """
+  Closes a `Phoenix.LiveViewTest` connection the way a browser navigating away
+  would: it stops the test's client proxy, so the LiveView channel dies cleanly
+  and `Phoenix.Presence` untracks it — without the shutdown cascading into the
+  test process (which a bare `Process.exit(view.pid, :kill)` does). Waits for the
+  view to actually be down.
+  """
+  def disconnect(%{pid: pid, proxy: {_ref, _topic, proxy_pid}}) do
+    ref = Process.monitor(pid)
+    Phoenix.LiveViewTest.ClientProxy.stop(proxy_pid, {:shutdown, :closed})
+
+    receive do
+      {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
+    after
+      2_000 -> Process.demonitor(ref, [:flush])
+    end
+  end
+
   @doc "Stops a process started by `track_user/1` and waits for it to exit."
   def stop_tracked(pid) do
     if Process.alive?(pid) do
