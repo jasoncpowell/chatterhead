@@ -69,6 +69,37 @@ defmodule ChatterheadWeb.RoomLiveTest do
     end
   end
 
+  describe "composing" do
+    test "submitting persists the message and renders it for the sender", %{conn: conn} do
+      {:ok, user} = Accounts.join("sender")
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      view |> form("#message-form", message: %{body: "my first message"}) |> render_submit()
+
+      assert render(view) =~ "my first message"
+      assert Repo.aggregate(Message, :count) == 1
+    end
+
+    test "a blank body renders an error and persists nothing", %{conn: conn} do
+      {:ok, user} = Accounts.join("blank-sender")
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      html = view |> form("#message-form", message: %{body: "   "}) |> render_submit()
+
+      assert html =~ "blank"
+      assert Repo.aggregate(Message, :count) == 0
+    end
+
+    test "the composer clears after a successful send", %{conn: conn} do
+      {:ok, user} = Accounts.join("clearer")
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      html = view |> form("#message-form", message: %{body: "clear me"}) |> render_submit()
+
+      refute html =~ ~s(value="clear me")
+    end
+  end
+
   defp seed_messages(user, bodies) do
     base = ~U[2026-01-01 00:00:00.000000Z]
 

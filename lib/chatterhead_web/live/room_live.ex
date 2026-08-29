@@ -8,6 +8,7 @@ defmodule ChatterheadWeb.RoomLive do
   use ChatterheadWeb, :live_view
 
   alias Chatterhead.Chat
+  alias Chatterhead.Chat.Message
 
   @impl true
   def mount(_params, _session, socket) do
@@ -19,7 +20,26 @@ defmodule ChatterheadWeb.RoomLive do
      socket
      |> assign(:more_history?, more_history?)
      |> assign(:oldest_cursor, oldest_cursor(messages))
+     |> assign(:form, to_form(Chat.change_message()))
      |> stream(:messages, messages)}
+  end
+
+  @impl true
+  def handle_event("validate", %{"message" => params}, socket) do
+    changeset = Chat.change_message(%Message{}, params)
+    {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
+  end
+
+  def handle_event("send", %{"message" => params}, socket) do
+    case Chat.send_message(socket.assigns.current_scope, params) do
+      {:ok, _message} ->
+        # No stream_insert here -- the message arrives via the PubSub
+        # subscription like everyone else's. One code path, one ordering.
+        {:noreply, assign(socket, :form, to_form(Chat.change_message()))}
+
+      {:error, changeset} ->
+        {:noreply, assign(socket, :form, to_form(changeset, action: :validate))}
+    end
   end
 
   @impl true
@@ -42,6 +62,26 @@ defmodule ChatterheadWeb.RoomLive do
           <div :for={{dom_id, message} <- @streams.messages} id={dom_id}>
             <.message message={message} current_user_id={@current_scope.user.id} />
           </div>
+        </div>
+
+        <div class="border-t border-base-300 p-4">
+          <.form
+            for={@form}
+            id="message-form"
+            phx-submit="send"
+            phx-change="validate"
+            class="flex items-start gap-2"
+          >
+            <div class="flex-1">
+              <.input
+                field={@form[:body]}
+                type="text"
+                placeholder="Message the room"
+                autocomplete="off"
+              />
+            </div>
+            <.button>Send</.button>
+          </.form>
         </div>
       </div>
     </Layouts.app>
