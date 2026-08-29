@@ -100,6 +100,18 @@ defmodule ChatterheadWeb.RoomLiveTest do
     end
   end
 
+  describe "scroll hook" do
+    test "the message pane is wired to the .MessageList colocated hook", %{conn: conn} do
+      {:ok, user} = Accounts.join("scroller")
+
+      {:ok, view, _html} = conn |> log_in(user) |> live(~p"/room")
+
+      # Colocated hooks render with the module-qualified name; behaviour is
+      # browser-only and verified manually.
+      assert has_element?(view, ~s(#messages[phx-hook$="MessageList"]))
+    end
+  end
+
   defp seed_messages(user, bodies) do
     base = ~U[2026-01-01 00:00:00.000000Z]
 

@@ -52,7 +52,12 @@ defmodule ChatterheadWeb.RoomLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="mx-auto flex w-full max-w-3xl flex-1 flex-col">
-        <div id="messages" phx-update="stream" class="flex-1 overflow-y-auto p-4">
+        <div
+          id="messages"
+          phx-update="stream"
+          phx-hook=".MessageList"
+          class="flex-1 overflow-y-auto p-4"
+        >
           <div
             id="messages-empty"
             class="hidden py-16 text-center text-sm text-base-content/50 only:block"
@@ -85,6 +90,25 @@ defmodule ChatterheadWeb.RoomLive do
         </div>
       </div>
     </Layouts.app>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".MessageList">
+      export default {
+        mounted() {
+          this.pinToBottom()
+        },
+        beforeUpdate() {
+          const el = this.el
+          // within ~2 lines of the bottom counts as "reading the newest"
+          this.wasAtBottom = el.scrollHeight - el.clientHeight - el.scrollTop < 48
+        },
+        updated() {
+          if (this.wasAtBottom) this.pinToBottom()
+        },
+        pinToBottom() {
+          this.el.scrollTop = this.el.scrollHeight
+        }
+      }
+    </script>
     """
   end
 
