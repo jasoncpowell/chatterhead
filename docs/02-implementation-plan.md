@@ -1483,6 +1483,16 @@ two sentences in the README.
 
 # CHAT-11 — Room: presence tracking and the live roster
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-11-room-roster`. 1 impl commit.
+The app is now feature-complete (A1–A8). Open questions resolved: **no** "X joined"
+lines in the stream (they wouldn't exist for a later-mounting client); roster is
+**informational**, not clickable; **no** header "n online" count — the roster's
+group counts suffice (answers CHAT-6 OQ4 too). Deviation: the presence tests use
+`PresenceCase.track_user/1` (same `Presence.track_user/2` a real room connection
+calls) as the stand-in for a second connection — killing a `Phoenix.LiveViewTest`
+view mid-test cascades through the shared test supervisor and takes the test with it.
+Real two-`live/2`-connection coverage is CHAT-12.
+
 ## Summary
 
 Track the current user's connection as a presence and render the live roster in the room sidebar.
@@ -1543,15 +1553,15 @@ this — the caveat is specific to presence.
 
 ## Acceptance criteria
 
-- [ ] Entering the room makes the current user appear as online in their own roster and in every
+- [x] Entering the room makes the current user appear as online in their own roster and in every
       other connected client's roster.
-- [ ] Closing the browser tab flips that user to offline everywhere, with no user action and no polling.
-- [ ] A user open in two tabs stays online when one tab closes, and goes offline when the second closes.
-- [ ] The roster shows every persisted user, including those who have never been online.
-- [ ] Offline users show a last-seen label that reflects when they actually left.
-- [ ] A client that mounts after others are already online shows them as online immediately.
-- [ ] `RoomLive` has no `terminate/2` callback.
-- [ ] Room presence tests pass repeatedly (`mix test --repeat-until-failure 20`) with no flakes.
+- [x] Closing the browser tab flips that user to offline everywhere, with no user action and no polling.
+- [x] A user open in two tabs stays online when one tab closes, and goes offline when the second closes.
+- [x] The roster shows every persisted user, including those who have never been online.
+- [x] Offline users show a last-seen label that reflects when they actually left.
+- [x] A client that mounts after others are already online shows them as online immediately.
+- [x] `RoomLive` has no `terminate/2` callback.
+- [x] Room presence tests pass repeatedly (`mix test --repeat-until-failure 20`) with no flakes.
 
 ---
 
