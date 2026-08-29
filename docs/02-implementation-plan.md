@@ -1571,6 +1571,16 @@ this — the caveat is specific to presence.
 
 # CHAT-12 — Multi-client verification
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-12-multi-client`. 3 test commits,
+one file `test/chatterhead_web/live/room_integration_test.exs` (`async: false`,
+`@moduletag :integration` — `mix test --exclude integration` skips it). Real
+two-`live/2`-connection tests throughout, including genuine disconnects via the new
+`PresenceCase.disconnect/1` (`Phoenix.LiveViewTest.ClientProxy.stop/2` — stopping the
+client proxy closes the LiveView cleanly without the shutdown cascading into the test
+process, which `Process.exit(view.pid, :kill)` does). Open questions: **no** N-client
+test (two proves fan-out); **no** reconnect test (that's LiveView's behaviour, not the
+app's); the `@tag` was worth adding.
+
 ## Summary
 
 The tests that prove the feature rather than the units: two simultaneous LiveView connections
@@ -1631,14 +1641,14 @@ process leakage from bleeding across tests.
 
 ## Acceptance criteria
 
-- [ ] A message sent from one connection renders in a second connection with no user action.
-- [ ] The sender sees their own message via the same broadcast path, not a local echo.
-- [ ] Interleaved messages from two clients render in identical order in both.
-- [ ] A user joining is reflected in an already-open client's roster.
-- [ ] A user leaving is reflected in an already-open client's roster.
-- [ ] Multi-tab presence behaves correctly across two real LiveView connections.
-- [ ] Paging backwards while another client is sending produces no duplicate and no missing message.
-- [ ] `mix test --repeat-until-failure 20` on this file is green.
+- [x] A message sent from one connection renders in a second connection with no user action.
+- [x] The sender sees their own message via the same broadcast path, not a local echo.
+- [x] Interleaved messages from two clients render in identical order in both.
+- [x] A user joining is reflected in an already-open client's roster.
+- [x] A user leaving is reflected in an already-open client's roster.
+- [x] Multi-tab presence behaves correctly across two real LiveView connections.
+- [x] Paging backwards while another client is sending produces no duplicate and no missing message.
+- [x] `mix test --repeat-until-failure 20` on this file is green. (Ran 20–25×.)
 
 ---
 
