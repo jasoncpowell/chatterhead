@@ -51,12 +51,12 @@ defmodule ChatterheadWeb.RoomLive do
   def render(assigns) do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
-      <div class="mx-auto flex w-full max-w-3xl flex-1 flex-col">
+      <div class="mx-auto flex w-full min-h-0 max-w-3xl flex-1 flex-col">
         <div
           id="messages"
           phx-update="stream"
           phx-hook=".MessageList"
-          class="flex-1 overflow-y-auto p-4"
+          class="min-h-0 flex-1 overflow-y-auto p-4"
         >
           <div
             id="messages-empty"

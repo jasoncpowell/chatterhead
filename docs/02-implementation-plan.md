@@ -1258,6 +1258,9 @@ Deviations: the empty-state div needs an `id` (`#messages-empty`) — the LiveVi
 DOM patcher rejects an id-less `phx-update="stream"` child, which the plan's template
 example omitted; the colocated hook renders `phx-hook="ChatterheadWeb.RoomLive.MessageList"`
 (module-qualified), not the literal `.MessageList` the plan's test assertion expected.
+Post-review fix: the message pane and its wrapper needed `min-h-0` (flex items default
+to `min-height: auto` and won't shrink below content), or the composer gets pushed
+off screen as history grows instead of the pane scrolling internally.
 
 ## Summary
 
