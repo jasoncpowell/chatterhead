@@ -1168,6 +1168,14 @@ it is a fallback for a direct POST, not the primary UX.
 
 # CHAT-8 — Lobby roster with live presence
 
+**Status:** ✅ Complete — 2026-08-28, branch `chat-8-lobby-presence`. 1 impl commit.
+Open questions resolved: **no** `{:user_created}` broadcast — a new joiner appears via
+`Roster.mark_online/2`'s insert the moment they're tracked; the snapshot uses
+`Presence.online_users/0` (the helper, not raw `Presence.list/1`). Added `track_user/1`
++ `stop_tracked/1` to `PresenceCase` (a bare presence-holding process) — a small
+extension beyond CHAT-4's helper list, needed because `RoomLive` doesn't track until
+CHAT-11.
+
 ## Summary
 
 Make the lobby's user list live: seed it from the database plus a presence snapshot, then keep it
@@ -1230,12 +1238,13 @@ mode — which is what lets CHAT-4's unowned `last_seen_at` task find a connecti
 
 ## Acceptance criteria
 
-- [ ] With nobody in the room, `/` lists every seeded user as offline.
-- [ ] When another client is in the room, `/` lists that user as online without a refresh.
-- [ ] When that client disconnects, `/` flips them to offline without a refresh or any user action.
-- [ ] A lobby opened *after* someone is already online shows them as online immediately (snapshot works).
-- [ ] The lobby never receives a raw `presence_diff` message.
-- [ ] Lobby presence tests pass repeatedly (`mix test --repeat-until-failure 20`) with no flakes.
+- [x] With nobody in the room, `/` lists every seeded user as offline.
+- [x] When another client is in the room, `/` lists that user as online without a refresh.
+- [x] When that client disconnects, `/` flips them to offline without a refresh or any user action.
+- [x] A lobby opened *after* someone is already online shows them as online immediately (snapshot works).
+- [x] The lobby never receives a raw `presence_diff` message.
+      → it subscribes to `events_topic/0`, not the tracked topic; CHAT-4's `presence_test` proves that topic never carries a diff.
+- [x] Lobby presence tests pass repeatedly (`mix test --repeat-until-failure 20`) with no flakes.
 
 ---
 
