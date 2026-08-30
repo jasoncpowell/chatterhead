@@ -6,7 +6,7 @@ moment you close the tab, with no polling.
 
 It's built on Phoenix LiveView with `Phoenix.PubSub` for message fan-out and 
 `Phoenix.Presence` for presence. The reasoning behind the design — including the
- hings deliberately *not* built — is in [`docs/`](docs/) and summarised below.
+ things deliberately *not* built — is in [`docs/`](docs/) and summarised below.
 
 - Elixir 1.20 / OTP 29 · Phoenix 1.8 · LiveView 1.2 · Ecto 3.14 · PostgreSQL 17
 
