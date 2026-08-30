@@ -67,6 +67,7 @@ defmodule ChatterheadWeb.ChatComponentsTest do
     setup do
       %{
         message: %{
+          id: 1,
           user_id: 7,
           user: %{name: "alice"},
           body: "hi <script>alert(1)</script>",
@@ -96,6 +97,15 @@ defmodule ChatterheadWeb.ChatComponentsTest do
 
       assert own =~ "bg-base-200"
       refute other =~ "bg-base-200"
+    end
+
+    test "wires the timestamp to the .LocalTime colocated hook", %{message: message} do
+      html = render_component(&ChatComponents.message/1, message: message, current_user_id: nil)
+
+      # Colocated hooks render with the module-qualified name; behaviour is
+      # browser-only and verified manually.
+      assert html =~ ~s(phx-hook="ChatterheadWeb.ChatComponents.LocalTime")
+      assert html =~ ~s(id="message-time-1")
     end
   end
 

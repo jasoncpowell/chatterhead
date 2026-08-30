@@ -95,6 +95,13 @@ defmodule ChatterheadWeb.ChatComponents do
   One message row: initials avatar, author, an absolute `HH:MM` timestamp (full
   timestamp in the `title`), and the body. The current user's own rows get a
   subtle tint. The body is rendered by HEEx, which escapes it.
+
+  The timestamp is server-rendered in UTC, then swapped to the viewer's local
+  time by the `.LocalTime` hook below -- the server has no notion of the
+  browser's time zone. `phx-update="ignore"` keeps LiveView from reverting the
+  hook's DOM write on a future patch (AGENTS.md: any hook that manages its own
+  DOM needs it); a stream item's timestamp never changes after insert, so
+  `mounted/0` alone is enough, with no `updated/0` to keep in sync.
   """
   attr :message, :map, required: true
   attr :current_user_id, :any, default: nil
@@ -110,6 +117,9 @@ defmodule ChatterheadWeb.ChatComponents do
         <div class="flex items-baseline gap-2">
           <span class="text-sm font-medium">{@message.user.name}</span>
           <time
+            id={"message-time-#{@message.id}"}
+            phx-hook=".LocalTime"
+            phx-update="ignore"
             datetime={DateTime.to_iso8601(@message.inserted_at)}
             title={Calendar.strftime(@message.inserted_at, "%Y-%m-%d %H:%M:%S UTC")}
             class="text-xs text-base-content/40"
@@ -120,6 +130,17 @@ defmodule ChatterheadWeb.ChatComponents do
         <p class="whitespace-pre-wrap break-words text-sm">{@message.body}</p>
       </div>
     </div>
+
+    <script :type={Phoenix.LiveView.ColocatedHook} name=".LocalTime">
+      export default {
+        mounted() {
+          const date = new Date(this.el.getAttribute("datetime"))
+          if (!Number.isNaN(date.getTime())) {
+            this.el.textContent = date.toLocaleTimeString([], {hour: "2-digit", minute: "2-digit"})
+          }
+        }
+      }
+    </script>
     """
   end
 

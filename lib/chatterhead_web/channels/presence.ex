@@ -80,12 +80,24 @@ defmodule ChatterheadWeb.Presence do
 
   Other tabs keep their own presence, so the user stays online while any of
   them are open — the same rule `handle_metas/4` applies.
+
+  Filtered to pids on this node. `get_by_key/3` reads the replicated CRDT, so
+  it can return a pid tracked by another node, but `untrack/3` always
+  dispatches to the *local* tracker shard -- untracking a foreign pid there
+  deletes an entry tagged by another replica's clock, which the CRDT merge
+  doesn't cleanly support and which resurfaces on that node's next heartbeat.
+  On one node the beacon and the tracked pid are always co-located, so the
+  guard never fires; on a cluster it turns a would-be corrupted untrack into a
+  harmless miss, falling back to the transport's silence timeout instead of
+  dropping the page at once. Forwarding the untrack to the owning node instead
+  of skipping it is follow-up work, not done here.
   """
   @spec untrack_page(User.t(), String.t()) :: :ok
   def untrack_page(%User{} = user, page_id) when is_binary(page_id) do
     key = to_string(user.id)
 
-    for {pid, %{page_id: ^page_id}} <- Phoenix.Tracker.get_by_key(__MODULE__, @topic, key) do
+    for {pid, %{page_id: ^page_id}} <- Phoenix.Tracker.get_by_key(__MODULE__, @topic, key),
+        node(pid) == node() do
       untrack(pid, @topic, key)
     end
 

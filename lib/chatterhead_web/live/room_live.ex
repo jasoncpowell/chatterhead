@@ -25,11 +25,12 @@ defmodule ChatterheadWeb.RoomLive do
         Phoenix.PubSub.subscribe(Chatterhead.PubSub, Presence.events_topic())
         Chat.subscribe()
 
-        Presence.track_user(
-          self(),
-          socket.assigns.current_scope.user,
-          get_connect_params(socket)["page_id"]
-        )
+        {:ok, _ref} =
+          Presence.track_user(
+            self(),
+            socket.assigns.current_scope.user,
+            get_connect_params(socket)["page_id"]
+          )
 
         Roster.build(Accounts.list_users(), Presence.online_users())
       else
@@ -152,6 +153,7 @@ defmodule ChatterheadWeb.RoomLive do
                   type="text"
                   placeholder="Message the room"
                   autocomplete="off"
+                  maxlength={Message.body_max()}
                 />
               </div>
               <.button>Send</.button>
@@ -171,16 +173,22 @@ defmodule ChatterheadWeb.RoomLive do
           // within ~2 lines of the bottom counts as "reading the newest"
           this.wasAtBottom = el.scrollHeight - el.clientHeight - el.scrollTop < 48
           this.prevScrollHeight = el.scrollHeight
+          // Identifies the newest message. Unchanged after the patch means
+          // content was inserted above it (Load older); changed means a new
+          // message was appended below it.
+          this.prevLastId = el.lastElementChild?.id
         },
         updated() {
           const el = this.el
           if (this.wasAtBottom) {
             this.pinToBottom()
-          } else {
+          } else if (el.lastElementChild?.id === this.prevLastId) {
             // Content was inserted above (Load older). Shift the viewport down by
             // the added height so the message being read stays put.
             el.scrollTop += el.scrollHeight - this.prevScrollHeight
           }
+          // Otherwise a message was appended below while reading history
+          // further up -- leave the scroll position alone.
         },
         pinToBottom() {
           this.el.scrollTop = this.el.scrollHeight

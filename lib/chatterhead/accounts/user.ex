@@ -22,6 +22,10 @@ defmodule Chatterhead.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
+  @doc "The maximum name length, enforced by `changeset/2`."
+  @spec name_max() :: pos_integer()
+  def name_max, do: @name_max
+
   @doc """
   Validates a claimed name.
 

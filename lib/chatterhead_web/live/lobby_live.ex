@@ -80,7 +80,7 @@ defmodule ChatterheadWeb.LobbyLive do
             type="text"
             label="Your name"
             autocomplete="off"
-            maxlength="24"
+            maxlength={User.name_max()}
             required
           />
           <.button class="w-full">Join the chat</.button>
