@@ -102,9 +102,12 @@ lib/chatterhead_web/
 
 | Topic | Published by | Subscribed by | Payload |
 |---|---|---|---|
-| `"chat:room"` | `Chat.send_message/2` | both LiveViews | `{:new_message, %Message{user: %User{}}}` |
+| `"chat:room"` | `Chat.send_message/2` | `RoomLive` | `{:new_message, %Message{user: %User{}}}` |
 | `"chat:presence"` | `Phoenix.Tracker` (internal) | **nobody** | raw `presence_diff` |
 | `"chat:presence:events"` | `Presence.handle_metas/4` | both LiveViews | `{:user_online, ...}` / `{:user_offline, ...}` |
+
+The lobby renders no messages, so only `RoomLive` subscribes to `"chat:room"`; both
+LiveViews subscribe to the presence events.
 
 `Phoenix.Presence` broadcasts a raw diff to whatever topic you `track/4` on. If the
 LiveViews subscribed to that, every diff would land in their `handle_info/2`. Instead
@@ -124,7 +127,7 @@ RoomLive "send" → Chat.send_message(%Scope{}, attrs)
 The broadcast comes from the context, not the LiveView, so an IEx session or a future
 HTTP endpoint also fans out. The sender has **no local echo** — they receive their
 own message through the broadcast like everyone else, so there is one code path and
-one ordering everywhere.
+no special case for the sender's own view.
 
 ### The presence path
 
@@ -189,7 +192,9 @@ to, which holds a different id.
   second place message ordering can disagree with the database — for no correctness
   gain. It would earn its keep with per-room state that *shouldn't* hit the database:
   typing indicators, per-room rate limiting, an in-memory ring buffer, or many rooms
-  with skewed traffic. None are requirements.
+  with skewed traffic — or with a requirement that live order match reload order
+  exactly (see Known limitations), which one process would serialize. None are
+  requirements.
 
 - **`citext` for names**, so "Jason" and "jason" are one user with no `lower(name)` at
   any call site. Costs extension-create privileges (see above).
@@ -240,11 +245,13 @@ to, which holds a different id.
 - **"Online" means present in the room.** A joined user browsing the lobby is not
   counted as online. `last_seen_at` means "last went offline" — `join/1` never writes
   it.
-- **Message ordering is by database timestamp**, not the client clock.
+- **Message ordering is by database timestamp**, not the client clock — see Known
+  limitations for the narrow case where live order and reload order can differ.
 - No editing, deleting, typing indicators, read receipts, attachments, or search.
 - Single-node in development. Presence (CRDT + PubSub) and message fan-out (PubSub)
-  are multi-node-safe as written; `untrack_page/2`'s beacon-driven leave is not — see
-  Known limitations. `DNSCluster` is in the supervision tree.
+  are multi-node-safe as written; `untrack_page/2`'s beacon-driven leave and the
+  `last_seen_at` write are not — see Known limitations. `DNSCluster` is in the
+  supervision tree.
 - Session identity has no expiry (`max_age`).
 
 ## Known limitations
@@ -257,6 +264,19 @@ to, which holds a different id.
   guards against untracking a foreign pid (which the underlying CRDT can't do cleanly)
   by skipping it, so a beacon that lands elsewhere is a no-op and that page falls back
   to the transport's silence timeout instead of dropping at once.
+- **`last_seen_at` is written once per node.** `handle_metas/4` runs on every node, so
+  a cluster performs N identical `UPDATE`s carrying the same second-truncated value.
+  Harmless — they are idempotent and agree — but wasteful. Electing a single writer, or
+  moving the write off the tracker path entirely, is follow-up work, not done here.
+- **Live ordering and reload ordering can disagree.** On reload, messages are ordered
+  `(inserted_at, id)` by Postgres — total and deterministic. *Live*, they arrive in
+  broadcast order, and Erlang guarantees ordering only between a given pair of
+  processes: two senders inserting near-simultaneously could in principle broadcast in
+  one order and be persisted in the other. Microsecond timestamps make the window
+  vanishingly small and the database is authoritative, so a refresh reconciles. Closing
+  it entirely means serialising the insert and the broadcast through one process — the
+  room `GenServer` under Design decisions, and the one requirement that would make it
+  earn its keep.
 - **Relative "last seen" labels don't tick.** A LiveView only re-renders on a change,
   so "2m ago" stays "2m ago" until the next roster event. Message timestamps are
   absolute for this reason.
