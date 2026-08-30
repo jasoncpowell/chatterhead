@@ -182,7 +182,7 @@ defmodule ChatterheadWeb.PresenceTest do
       Process.exit(tab, :kill)
       assert_receive {:user_offline, %{id: ^id, at: at}}, 1000
 
-      # The write runs in an unsupervised task; async: false puts the Repo in
+      # The write runs in a supervised task; async: false puts the Repo in
       # shared mode so it finds a connection. eventually/2 waits for it.
       eventually(fn -> assert Accounts.get_user!(id).last_seen_at == at end)
     end

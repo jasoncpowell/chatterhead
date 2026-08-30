@@ -1,9 +1,9 @@
 defmodule ChatterheadWeb.RoomLive do
   @moduledoc """
-  The one shared room: the most recent page of history streamed on mount, and
+  The one shared room: the most recent page of history streamed on mount,
   live fan-out of every new message to every connected client (the sender
-  included — no local echo). CHAT-10 adds "load older"; CHAT-11 adds presence
-  tracking and the roster.
+  included — no local echo), "load older" via keyset pagination, and a live
+  roster backed by presence tracking.
   """
   use ChatterheadWeb, :live_view
 

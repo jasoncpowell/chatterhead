@@ -11,9 +11,9 @@ defmodule ChatterheadWeb.Presence do
     * callers read the integer id straight from the meta and never parse the
       string key.
 
-  From CHAT-4 commit 3 this module is also a *presence client*: `init/1` +
-  `handle_metas/4` translate raw tracker diffs into semantic `{:user_online,
-  ...}` / `{:user_offline, ...}` events on `events_topic/0`.
+  This module is also a *presence client*: `init/1` + `handle_metas/4`
+  translate raw tracker diffs into semantic `{:user_online, ...}` /
+  `{:user_offline, ...}` events on `events_topic/0`.
   """
   use Phoenix.Presence,
     otp_app: :chatterhead,

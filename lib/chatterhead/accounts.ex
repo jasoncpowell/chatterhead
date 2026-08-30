@@ -66,7 +66,7 @@ defmodule Chatterhead.Accounts do
   Records `at` as the user's `last_seen_at`.
 
   One targeted `UPDATE`, no changeset and no read, so it is safe to call from
-  any process — including the unsupervised task the presence client spawns on
+  any process — including the supervised task the presence client spawns on
   leave. A missing user id is a harmless no-op.
 
   Stored at second precision (`update_all` truncates the value). The presence

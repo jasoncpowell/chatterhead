@@ -4,7 +4,7 @@ defmodule ChatterheadWeb.ChatComponents do
   roster, a message row, and the relative "last seen" label.
 
   Built on the shipped `core_components.ex` and the daisyUI theme tokens, not a
-  from-scratch design system (decision D11).
+  from-scratch design system.
   """
   use Phoenix.Component
 

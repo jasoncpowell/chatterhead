@@ -4,9 +4,9 @@ A single-room live chat: pick a name, join, and talk. Everyone sees every messag
 it's sent, and the roster shows who's in the room right now — going offline the
 moment you close the tab, with no polling.
 
-It's built on Phoenix LiveView with `Phoenix.PubSub` for message fan-out and 
+It's built on Phoenix LiveView with `Phoenix.PubSub` for message fan-out and
 `Phoenix.Presence` for presence. The reasoning behind the design — including the
- things deliberately *not* built — is in [`docs/`](docs/) and summarised below.
+things deliberately *not* built — is in [`docs/`](docs/) and summarised below.
 
 - Elixir 1.20 / OTP 29 · Phoenix 1.8 · LiveView 1.2 · Ecto 3.14 · PostgreSQL 17
 
@@ -65,7 +65,7 @@ instead — not built here.
 ## Running the tests
 
 ```sh
-mix test                       # ~120 tests
+mix test                       # ~135 tests
 mix test --exclude integration # skip the multi-connection suite for a faster loop
 mix precommit                  # the full gate: compile --warnings-as-errors, format, test
 ```
