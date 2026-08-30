@@ -11,9 +11,9 @@ defmodule ChatterheadWeb.Presence do
     * callers read the integer id straight from the meta and never parse the
       string key.
 
-  From CHAT-4 commit 3 this module is also a *presence client*: `init/1` +
-  `handle_metas/4` translate raw tracker diffs into semantic `{:user_online,
-  ...}` / `{:user_offline, ...}` events on `events_topic/0`.
+  This module is also a *presence client*: `init/1` + `handle_metas/4`
+  translate raw tracker diffs into semantic `{:user_online, ...}` /
+  `{:user_offline, ...}` events on `events_topic/0`.
   """
   use Phoenix.Presence,
     otp_app: :chatterhead,
@@ -45,6 +45,12 @@ defmodule ChatterheadWeb.Presence do
   @spec events_topic() :: String.t()
   def events_topic, do: "chat:presence:events"
 
+  @doc "Subscribes the calling process to `events_topic/0`'s semantic events."
+  @spec subscribe() :: :ok | {:error, term()}
+  def subscribe do
+    Phoenix.PubSub.subscribe(Chatterhead.PubSub, events_topic())
+  end
+
   @doc """
   Tracks `pid` (a LiveView process) as `user` being present in the room.
 
@@ -54,12 +60,7 @@ defmodule ChatterheadWeb.Presence do
   """
   @spec track_user(pid(), User.t(), String.t() | nil) :: {:ok, binary()} | {:error, term()}
   def track_user(pid, %User{} = user, page_id \\ nil) do
-    track(pid, @topic, to_string(user.id), %{
-      id: user.id,
-      name: user.name,
-      page_id: page_id,
-      online_at: DateTime.utc_now()
-    })
+    track(pid, @topic, to_string(user.id), %{id: user.id, name: user.name, page_id: page_id})
   end
 
   @doc """
@@ -80,12 +81,24 @@ defmodule ChatterheadWeb.Presence do
 
   Other tabs keep their own presence, so the user stays online while any of
   them are open — the same rule `handle_metas/4` applies.
+
+  Filtered to pids on this node. `get_by_key/3` reads the replicated CRDT, so
+  it can return a pid tracked by another node, but `untrack/3` always
+  dispatches to the *local* tracker shard -- untracking a foreign pid there
+  deletes an entry tagged by another replica's clock, which the CRDT merge
+  doesn't cleanly support and which resurfaces on that node's next heartbeat.
+  On one node the beacon and the tracked pid are always co-located, so the
+  guard never fires; on a cluster it turns a would-be corrupted untrack into a
+  harmless miss, falling back to the transport's silence timeout instead of
+  dropping the page at once. Forwarding the untrack to the owning node instead
+  of skipping it is follow-up work, not done here.
   """
   @spec untrack_page(User.t(), String.t()) :: :ok
   def untrack_page(%User{} = user, page_id) when is_binary(page_id) do
     key = to_string(user.id)
 
-    for {pid, %{page_id: ^page_id}} <- Phoenix.Tracker.get_by_key(__MODULE__, @topic, key) do
+    for {pid, %{page_id: ^page_id}} <- Phoenix.Tracker.get_by_key(__MODULE__, @topic, key),
+        node(pid) == node() do
       untrack(pid, @topic, key)
     end
 
@@ -122,8 +135,7 @@ defmodule ChatterheadWeb.Presence do
   #                    leaves, so `Map.has_key?(presences, key)` answers "are any
   #                    tabs for this user still open?".
   #
-  #   meta           : %{id: integer, name: String.t(), page_id: String.t() | nil,
-  #                       online_at: DateTime.t()}
+  #   meta           : %{id: integer, name: String.t(), page_id: String.t() | nil}
   #
   #   state          : %{topic => %{key => %{id: integer, name: String.t()}}}
 

@@ -1,9 +1,9 @@
 defmodule ChatterheadWeb.RoomLive do
   @moduledoc """
-  The one shared room: the most recent page of history streamed on mount, and
+  The one shared room: the most recent page of history streamed on mount,
   live fan-out of every new message to every connected client (the sender
-  included — no local echo). CHAT-10 adds "load older"; CHAT-11 adds presence
-  tracking and the roster.
+  included — no local echo), "load older" via keyset pagination, and a live
+  roster backed by presence tracking.
   """
   use ChatterheadWeb, :live_view
 
@@ -22,14 +22,15 @@ defmodule ChatterheadWeb.RoomLive do
         # Subscribe before tracking (so our own join event can't be missed),
         # track before snapshotting (so the snapshot already contains us). Every
         # roster handler is idempotent, so any overlap is harmless.
-        Phoenix.PubSub.subscribe(Chatterhead.PubSub, Presence.events_topic())
+        Presence.subscribe()
         Chat.subscribe()
 
-        Presence.track_user(
-          self(),
-          socket.assigns.current_scope.user,
-          get_connect_params(socket)["page_id"]
-        )
+        {:ok, _ref} =
+          Presence.track_user(
+            self(),
+            socket.assigns.current_scope.user,
+            get_connect_params(socket)["page_id"]
+          )
 
         Roster.build(Accounts.list_users(), Presence.online_users())
       else
@@ -100,12 +101,8 @@ defmodule ChatterheadWeb.RoomLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="flex min-h-0 flex-1">
-        <aside class="hidden w-56 min-h-0 shrink-0 overflow-y-auto border-r border-base-300 sm:block">
-          <.roster
-            entries={Roster.entries(@roster)}
-            counts={Roster.counts(@roster)}
-            current_user_id={@current_scope.user.id}
-          />
+        <aside class="hidden w-56 min-h-0 shrink-0 border-r border-base-300 sm:block">
+          <.roster entries={Roster.entries(@roster)} current_user_id={@current_scope.user.id} />
         </aside>
 
         <div class="flex min-h-0 flex-1 flex-col">
@@ -152,6 +149,7 @@ defmodule ChatterheadWeb.RoomLive do
                   type="text"
                   placeholder="Message the room"
                   autocomplete="off"
+                  maxlength={Message.body_max()}
                 />
               </div>
               <.button>Send</.button>
@@ -171,16 +169,22 @@ defmodule ChatterheadWeb.RoomLive do
           // within ~2 lines of the bottom counts as "reading the newest"
           this.wasAtBottom = el.scrollHeight - el.clientHeight - el.scrollTop < 48
           this.prevScrollHeight = el.scrollHeight
+          // Identifies the newest message. Unchanged after the patch means
+          // content was inserted above it (Load older); changed means a new
+          // message was appended below it.
+          this.prevLastId = el.lastElementChild?.id
         },
         updated() {
           const el = this.el
           if (this.wasAtBottom) {
             this.pinToBottom()
-          } else {
+          } else if (el.lastElementChild?.id === this.prevLastId) {
             // Content was inserted above (Load older). Shift the viewport down by
             // the added height so the message being read stays put.
             el.scrollTop += el.scrollHeight - this.prevScrollHeight
           }
+          // Otherwise a message was appended below while reading history
+          // further up -- leave the scroll position alone.
         },
         pinToBottom() {
           this.el.scrollTop = this.el.scrollHeight

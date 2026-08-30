@@ -20,6 +20,10 @@ defmodule Chatterhead.Chat.Message do
     timestamps(type: :utc_datetime_usec)
   end
 
+  @doc "The maximum body length, enforced by `changeset/2`."
+  @spec body_max() :: pos_integer()
+  def body_max, do: @body_max
+
   @doc """
   Validates a message body.
 

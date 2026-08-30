@@ -11,10 +11,10 @@ defmodule ChatterheadWeb.Endpoint do
     same_site: "Lax"
   ]
 
-  # Both timings here are backstops, for a client that vanishes without a word:
-  # a crash, a killed tab, a dropped network. A client that leaves on purpose is
-  # dropped at once by the `pagehide` beacon in app.js, and one that clicks Leave
-  # by the disconnect broadcast in UserAuth.log_out_user/1.
+  # Both timings here are backstops, for a client that vanishes without a word
+  # (a crash, a killed tab, a dropped network) -- see the README's "Going
+  # offline promptly" table for the other two paths (Leave and the `pagehide`
+  # beacon), which both drop presence immediately rather than waiting here.
   #
   # websocket timeout: 25s (default 60s). The client heartbeats every 10s
   # (app.js), so a live connection stays well inside the window.

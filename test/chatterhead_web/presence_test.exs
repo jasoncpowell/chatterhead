@@ -35,7 +35,7 @@ defmodule ChatterheadWeb.PresenceTest do
 
   describe "track_user/2 and online_users/0" do
     test "a tracked process appears keyed by integer id", %{user: user} do
-      start_tracker(user)
+      track_user(user)
       %{id: id, name: name} = user
 
       eventually(fn ->
@@ -44,7 +44,7 @@ defmodule ChatterheadWeb.PresenceTest do
     end
 
     test "killing the tracked process removes the entry", %{user: user} do
-      pid = start_tracker(user)
+      pid = track_user(user)
       id = user.id
 
       eventually(fn -> assert Map.has_key?(Presence.online_users(), id) end)
@@ -55,8 +55,8 @@ defmodule ChatterheadWeb.PresenceTest do
     end
 
     test "two processes for the same user yield exactly one entry", %{user: user} do
-      start_tracker(user)
-      start_tracker(user)
+      track_user(user)
+      track_user(user)
       id = user.id
 
       eventually(fn -> assert Map.keys(Presence.online_users()) == [id] end)
@@ -66,7 +66,7 @@ defmodule ChatterheadWeb.PresenceTest do
   describe "presence client events" do
     test "tracking a user publishes exactly one :user_online", %{user: user} do
       %{id: id, name: name} = user
-      start_tracker(user)
+      track_user(user)
 
       assert_receive {:user_online, %{id: ^id, name: ^name}}, 1000
       refute_receive {:user_online, %{id: ^id}}, 100
@@ -74,17 +74,17 @@ defmodule ChatterheadWeb.PresenceTest do
 
     test "a second tab for the same user publishes no further :user_online", %{user: user} do
       id = user.id
-      start_tracker(user)
+      track_user(user)
       assert_receive {:user_online, %{id: ^id}}, 1000
 
-      start_tracker(user)
+      track_user(user)
       refute_receive {:user_online, %{id: ^id}}, 200
     end
 
     test "closing one of two tabs publishes no :user_offline", %{user: user} do
       id = user.id
-      tab1 = start_tracker(user)
-      _tab2 = start_tracker(user)
+      tab1 = track_user(user)
+      _tab2 = track_user(user)
       assert_receive {:user_online, %{id: ^id}}, 1000
 
       Process.exit(tab1, :kill)
@@ -95,8 +95,8 @@ defmodule ChatterheadWeb.PresenceTest do
       user: user
     } do
       id = user.id
-      tab1 = start_tracker(user)
-      tab2 = start_tracker(user)
+      tab1 = track_user(user)
+      tab2 = track_user(user)
       assert_receive {:user_online, %{id: ^id}}, 1000
 
       Process.exit(tab1, :kill)
@@ -109,7 +109,7 @@ defmodule ChatterheadWeb.PresenceTest do
 
     test "the events topic never carries a raw presence_diff", %{user: user} do
       id = user.id
-      tab = start_tracker(user)
+      tab = track_user(user)
       assert_receive {:user_online, %{id: ^id}}, 1000
       Process.exit(tab, :kill)
       assert_receive {:user_offline, %{id: ^id}}, 1000
@@ -123,7 +123,7 @@ defmodule ChatterheadWeb.PresenceTest do
   describe "untrack_page/2" do
     test "drops the named page's presence and publishes :user_offline", %{user: user} do
       id = user.id
-      start_tracker(user, "page-a")
+      track_user(user, "page-a")
       assert_receive {:user_online, %{id: ^id}}, 1000
 
       assert :ok = Presence.untrack_page(user, "page-a")
@@ -134,8 +134,8 @@ defmodule ChatterheadWeb.PresenceTest do
 
     test "another tab of the same user keeps them online", %{user: user} do
       id = user.id
-      start_tracker(user, "page-a")
-      start_tracker(user, "page-b")
+      track_user(user, "page-a")
+      track_user(user, "page-b")
       assert_receive {:user_online, %{id: ^id}}, 1000
 
       assert :ok = Presence.untrack_page(user, "page-a")
@@ -149,7 +149,7 @@ defmodule ChatterheadWeb.PresenceTest do
     # to connects, and it must not be able to unseat it.
     test "a page id this user does not hold is a no-op", %{user: user} do
       id = user.id
-      start_tracker(user, "page-current")
+      track_user(user, "page-current")
       assert_receive {:user_online, %{id: ^id}}, 1000
 
       assert :ok = Presence.untrack_page(user, "page-already-closed")
@@ -161,7 +161,7 @@ defmodule ChatterheadWeb.PresenceTest do
     test "one user's page id cannot drop another user", %{user: user} do
       id = user.id
       {:ok, other} = Accounts.join("other-#{System.unique_integer([:positive])}")
-      start_tracker(user, "shared-page-id")
+      track_user(user, "shared-page-id")
       assert_receive {:user_online, %{id: ^id}}, 1000
 
       assert :ok = Presence.untrack_page(other, "shared-page-id")
@@ -176,46 +176,15 @@ defmodule ChatterheadWeb.PresenceTest do
       id = user.id
       assert Accounts.get_user!(id).last_seen_at == nil
 
-      tab = start_tracker(user)
+      tab = track_user(user)
       assert_receive {:user_online, %{id: ^id}}, 1000
 
       Process.exit(tab, :kill)
       assert_receive {:user_offline, %{id: ^id, at: at}}, 1000
 
-      # The write runs in an unsupervised task; async: false puts the Repo in
+      # The write runs in a supervised task; async: false puts the Repo in
       # shared mode so it finds a connection. eventually/2 waits for it.
       eventually(fn -> assert Accounts.get_user!(id).last_seen_at == at end)
-    end
-  end
-
-  defp start_tracker(user, page_id \\ nil) do
-    test = self()
-
-    pid =
-      spawn(fn ->
-        {:ok, _ref} = Presence.track_user(self(), user, page_id)
-        send(test, {:tracked, self()})
-
-        receive do
-          :stop -> :ok
-        end
-      end)
-
-    assert_receive {:tracked, ^pid}
-    on_exit(fn -> stop_tracker(pid) end)
-    pid
-  end
-
-  defp stop_tracker(pid) do
-    if Process.alive?(pid) do
-      ref = Process.monitor(pid)
-      send(pid, :stop)
-
-      receive do
-        {:DOWN, ^ref, :process, ^pid, _reason} -> :ok
-      after
-        500 -> Process.demonitor(ref, [:flush])
-      end
     end
   end
 end

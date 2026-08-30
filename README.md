@@ -4,9 +4,9 @@ A single-room live chat: pick a name, join, and talk. Everyone sees every messag
 it's sent, and the roster shows who's in the room right now — going offline the
 moment you close the tab, with no polling.
 
-It's built on Phoenix LiveView with `Phoenix.PubSub` for message fan-out and 
+It's built on Phoenix LiveView with `Phoenix.PubSub` for message fan-out and
 `Phoenix.Presence` for presence. The reasoning behind the design — including the
- things deliberately *not* built — is in [`docs/`](docs/) and summarised below.
+things deliberately *not* built — is in [`docs/`](docs/) and summarised below.
 
 - Elixir 1.20 / OTP 29 · Phoenix 1.8 · LiveView 1.2 · Ecto 3.14 · PostgreSQL 17
 
@@ -65,7 +65,7 @@ instead — not built here.
 ## Running the tests
 
 ```sh
-mix test                       # ~120 tests
+mix test                       # ~135 tests
 mix test --exclude integration # skip the multi-connection suite for a faster loop
 mix precommit                  # the full gate: compile --warnings-as-errors, format, test
 ```
@@ -242,14 +242,21 @@ to, which holds a different id.
   it.
 - **Message ordering is by database timestamp**, not the client clock.
 - No editing, deleting, typing indicators, read receipts, attachments, or search.
-- Single-node in development. The design is multi-node-safe as written (Presence CRDT +
-  PubSub), and `DNSCluster` is in the supervision tree.
+- Single-node in development. Presence (CRDT + PubSub) and message fan-out (PubSub)
+  are multi-node-safe as written; `untrack_page/2`'s beacon-driven leave is not — see
+  Known limitations. `DNSCluster` is in the supervision tree.
 - Session identity has no expiry (`max_age`).
 
 ## Known limitations
 
 - **Single-node presence resilience.** If the tracker process crashes, local presence
   state is lost and live LiveViews are not automatically re-tracked.
+- **`untrack_page/2` assumes the beacon lands on the tracking node.** On a single node
+  this always holds. On a cluster behind a load balancer, `POST /away` can land on a
+  different node than the one holding the tracked LiveView process; `untrack_page/2`
+  guards against untracking a foreign pid (which the underlying CRDT can't do cleanly)
+  by skipping it, so a beacon that lands elsewhere is a no-op and that page falls back
+  to the transport's silence timeout instead of dropping at once.
 - **Relative "last seen" labels don't tick.** A LiveView only re-renders on a change,
   so "2m ago" stays "2m ago" until the next roster event. Message timestamps are
   absolute for this reason.

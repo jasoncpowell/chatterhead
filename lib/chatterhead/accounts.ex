@@ -7,7 +7,7 @@ defmodule Chatterhead.Accounts do
   `Phoenix.Presence`.
   """
 
-  import Ecto.Query, warn: false
+  import Ecto.Query
 
   alias Chatterhead.Accounts.User
   alias Chatterhead.Repo
@@ -66,7 +66,7 @@ defmodule Chatterhead.Accounts do
   Records `at` as the user's `last_seen_at`.
 
   One targeted `UPDATE`, no changeset and no read, so it is safe to call from
-  any process — including the unsupervised task the presence client spawns on
+  any process — including the supervised task the presence client spawns on
   leave. A missing user id is a harmless no-op.
 
   Stored at second precision (`update_all` truncates the value). The presence
@@ -84,9 +84,7 @@ defmodule Chatterhead.Accounts do
   to the web layer.
   """
   @spec change_user(User.t(), map()) :: Ecto.Changeset.t()
-  def change_user(user \\ %User{}, attrs \\ %{})
-
-  def change_user(%User{} = user, attrs) do
+  def change_user(%User{} = user \\ %User{}, attrs \\ %{}) do
     User.changeset(user, attrs)
   end
 end

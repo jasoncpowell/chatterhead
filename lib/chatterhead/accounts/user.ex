@@ -22,11 +22,15 @@ defmodule Chatterhead.Accounts.User do
     timestamps(type: :utc_datetime)
   end
 
+  @doc "The maximum name length, enforced by `changeset/2`."
+  @spec name_max() :: pos_integer()
+  def name_max, do: @name_max
+
   @doc """
   Validates a claimed name.
 
-  `last_seen_at` is written programmatically by the presence client (CHAT-4)
-  and is deliberately not castable here.
+  `last_seen_at` is written programmatically by the presence client and is
+  deliberately not castable here.
   """
   def changeset(user, attrs) do
     user
