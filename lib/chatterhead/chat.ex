@@ -57,10 +57,6 @@ defmodule Chatterhead.Chat do
   @spec page_size() :: pos_integer()
   def page_size, do: @page_size
 
-  @doc "The PubSub topic new messages are broadcast on."
-  @spec topic() :: String.t()
-  def topic, do: @topic
-
   @doc "Subscribes the calling process to `{:new_message, message}` broadcasts."
   @spec subscribe() :: :ok | {:error, term()}
   def subscribe do
@@ -94,9 +90,7 @@ defmodule Chatterhead.Chat do
 
   @doc "A changeset for the compose form."
   @spec change_message(Message.t(), map()) :: Ecto.Changeset.t()
-  def change_message(message \\ %Message{}, attrs \\ %{})
-
-  def change_message(%Message{} = message, attrs) do
+  def change_message(%Message{} = message \\ %Message{}, attrs \\ %{}) do
     Message.changeset(message, attrs)
   end
 

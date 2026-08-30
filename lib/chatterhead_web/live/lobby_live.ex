@@ -22,7 +22,7 @@ defmodule ChatterheadWeb.LobbyLive do
         # Subscribe *before* snapshotting: a join or leave in the gap would be
         # lost otherwise. A duplicated event is harmless — mark_online/2 and
         # mark_offline/2 are idempotent.
-        Phoenix.PubSub.subscribe(Chatterhead.PubSub, Presence.events_topic())
+        Presence.subscribe()
         Presence.online_users()
       else
         %{}
@@ -92,7 +92,6 @@ defmodule ChatterheadWeb.LobbyLive do
           </h2>
           <.roster
             entries={Roster.entries(@roster)}
-            counts={Roster.counts(@roster)}
             current_user_id={@current_scope && @current_scope.user.id}
           />
         </div>

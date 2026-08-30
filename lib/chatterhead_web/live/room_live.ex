@@ -22,7 +22,7 @@ defmodule ChatterheadWeb.RoomLive do
         # Subscribe before tracking (so our own join event can't be missed),
         # track before snapshotting (so the snapshot already contains us). Every
         # roster handler is idempotent, so any overlap is harmless.
-        Phoenix.PubSub.subscribe(Chatterhead.PubSub, Presence.events_topic())
+        Presence.subscribe()
         Chat.subscribe()
 
         {:ok, _ref} =
@@ -101,12 +101,8 @@ defmodule ChatterheadWeb.RoomLive do
     ~H"""
     <Layouts.app flash={@flash} current_scope={@current_scope}>
       <div class="flex min-h-0 flex-1">
-        <aside class="hidden w-56 min-h-0 shrink-0 overflow-y-auto border-r border-base-300 sm:block">
-          <.roster
-            entries={Roster.entries(@roster)}
-            counts={Roster.counts(@roster)}
-            current_user_id={@current_scope.user.id}
-          />
+        <aside class="hidden w-56 min-h-0 shrink-0 border-r border-base-300 sm:block">
+          <.roster entries={Roster.entries(@roster)} current_user_id={@current_scope.user.id} />
         </aside>
 
         <div class="flex min-h-0 flex-1 flex-col">

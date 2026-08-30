@@ -29,10 +29,11 @@ defmodule ChatterheadWeb.ChatComponents do
 
   @doc """
   The roster: an "Online (n)" section above an "Offline (n)" section. `entries`
-  is the sorted list from `Chatterhead.Accounts.Roster.entries/1`.
+  is the sorted list from `Chatterhead.Accounts.Roster.entries/1`; the section
+  counts are derived from the same split this renders, so they can't disagree
+  with what's on screen.
   """
   attr :entries, :list, required: true
-  attr :counts, :map, required: true
   attr :current_user_id, :any, default: nil
 
   def roster(assigns) do
@@ -43,13 +44,13 @@ defmodule ChatterheadWeb.ChatComponents do
     <div id="roster" class="flex flex-col gap-5 overflow-y-auto p-4">
       <.roster_group
         title="Online"
-        count={@counts.online}
+        count={length(@online)}
         entries={@online}
         current_user_id={@current_user_id}
       />
       <.roster_group
         title="Offline"
-        count={@counts.offline}
+        count={length(@offline)}
         entries={@offline}
         current_user_id={@current_user_id}
       />

@@ -45,6 +45,12 @@ defmodule ChatterheadWeb.Presence do
   @spec events_topic() :: String.t()
   def events_topic, do: "chat:presence:events"
 
+  @doc "Subscribes the calling process to `events_topic/0`'s semantic events."
+  @spec subscribe() :: :ok | {:error, term()}
+  def subscribe do
+    Phoenix.PubSub.subscribe(Chatterhead.PubSub, events_topic())
+  end
+
   @doc """
   Tracks `pid` (a LiveView process) as `user` being present in the room.
 
@@ -54,12 +60,7 @@ defmodule ChatterheadWeb.Presence do
   """
   @spec track_user(pid(), User.t(), String.t() | nil) :: {:ok, binary()} | {:error, term()}
   def track_user(pid, %User{} = user, page_id \\ nil) do
-    track(pid, @topic, to_string(user.id), %{
-      id: user.id,
-      name: user.name,
-      page_id: page_id,
-      online_at: DateTime.utc_now()
-    })
+    track(pid, @topic, to_string(user.id), %{id: user.id, name: user.name, page_id: page_id})
   end
 
   @doc """
@@ -134,8 +135,7 @@ defmodule ChatterheadWeb.Presence do
   #                    leaves, so `Map.has_key?(presences, key)` answers "are any
   #                    tabs for this user still open?".
   #
-  #   meta           : %{id: integer, name: String.t(), page_id: String.t() | nil,
-  #                       online_at: DateTime.t()}
+  #   meta           : %{id: integer, name: String.t(), page_id: String.t() | nil}
   #
   #   state          : %{topic => %{key => %{id: integer, name: String.t()}}}
 

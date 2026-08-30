@@ -27,7 +27,6 @@ defmodule ChatterheadWeb.ChatComponentsTest do
       html =
         render_component(&ChatComponents.roster/1,
           entries: entries,
-          counts: %{online: 1, offline: 2},
           current_user_id: 1
         )
 
