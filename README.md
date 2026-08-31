@@ -75,6 +75,83 @@ CI runs `mix precommit`'s checks on every push and pull request
 
 ---
 
+## Running two nodes locally
+
+`Phoenix.PubSub` and `Phoenix.Presence` are multi-node-safe as written (see
+[Assumptions](#assumptions)) — but a single `mix phx.server` never exercises that: every
+LiveView in the usual demo shares one tracker and one PubSub process. Running two named
+nodes on one machine, joined over real Erlang distribution, is what actually proves the
+CRDT merge and cross-node PubSub fan-out this app is built on, rather than taking it on
+faith.
+
+Postgres must already be running (`docker compose up -d --wait`). Both nodes point at
+the same `chatterhead_dev` database — one database behind several app instances, same as
+any real multi-node deployment.
+
+Start the first node on the default port:
+
+```sh
+iex --sname node1 -S mix phx.server
+```
+
+Start the second in another terminal, on a different port (`PORT` is read
+unconditionally in `config/runtime.exs`, so this works outside `:prod` too):
+
+```sh
+PORT=4001 iex --sname node2 -S mix phx.server
+```
+
+**Connect them — nothing does this automatically here.** `DNSCluster` is in the
+supervision tree for real deployments, but its query is only configured under
+`config_env() == :prod`; locally it's `:ignore`, so the two nodes start up with no idea
+the other exists. From either shell:
+
+```elixir
+Node.connect(:"node2@your-hostname")   # swap the name if run from node2's shell
+```
+
+Use your machine's short hostname (`hostname -s`, not the fully-qualified one) in place
+of `your-hostname` — for example, `Node.connect(:"node2@Mac")`. **Check the return
+value**: `true` means the link is up; `false` means it silently isn't, and nothing
+downstream will work. The whole node name has to be a quoted atom (`:"node2@Mac"`) —
+`@` isn't valid in a bare atom literal, so the unquoted form is a syntax error, not a
+harmless typo.
+
+Confirm from both sides:
+
+```elixir
+Node.list()   # => [:"node2@Mac"]  (or [:"node1@Mac"], from the other shell)
+```
+
+Then open <http://localhost:4000> in one browser and <http://localhost:4001> in another
+(or a private window), join as two different names, and:
+
+- a message sent on one port appears on the other — `Phoenix.PubSub`'s default adapter
+  spans every connected node automatically once `Node.connect/1` has run, no extra
+  config needed;
+- each roster shows the other as online — `Phoenix.Tracker` gossiping and CRDT-merging
+  two independent replicas, not two views onto one shared process.
+
+To watch the merge itself rather than just its effect, call
+`ChatterheadWeb.Presence.online_users()` from node1's shell right after joining on
+node2, then again a second later. The gap between an empty or partial result and the
+converged one is the eventual-consistency window described under
+[the presence path](#the-presence-path), made visible instead of theoretical.
+
+**If they don't seem to be talking to each other**, roughly in order of likelihood:
+
+- `Node.connect/1` was never actually called, or was called but returned `false` — the
+  default state of two servers just running side by side, since nothing auto-connects
+  them locally.
+- The node name was wrong: a typo, the long hostname instead of the short one, or an
+  unquoted atom that never compiled in the first place.
+- `Node.list()` was only checked on one side. The link is bidirectional once
+  established, so an empty list on either side means it isn't up yet.
+
+`Ctrl+C` twice in each terminal to stop both nodes; no other cleanup needed.
+
+---
+
 ## Architecture
 
 Two contexts own the domain; the web layer never touches `Repo` directly.
